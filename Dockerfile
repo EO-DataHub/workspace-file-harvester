@@ -15,5 +15,5 @@ ADD pyproject.toml ./
 RUN --mount=type=cache,target=/root/.cache/pip pip3 install -r requirements.txt .
 
 # Change as required, eg
-CMD ["fastapi", "run", "app"]
+CMD ["fastapi", "run", "app.py"]
 
