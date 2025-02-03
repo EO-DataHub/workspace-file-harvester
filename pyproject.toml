@@ -66,7 +66,6 @@ classifiers = [
 dependencies = [
     "boto3",
     "botocore",
-    "click",
     "eodhp-utils @ git+https://github.com/UKEODHP/eodhp-utils@v0.1.4",
     "pystac-client",
     "pystac",

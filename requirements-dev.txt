@@ -50,7 +50,6 @@ click==8.1.7
     #   rich-toolkit
     #   typer
     #   uvicorn
-    #   workspace-file-harvester (pyproject.toml)
 cryptography==44.0.0
     # via moto
 distlib==0.3.8
