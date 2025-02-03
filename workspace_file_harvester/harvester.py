@@ -79,7 +79,7 @@ async def harvest(workspace_name: str, s3_bucket: str):
         producer = pulsar_client.create_producer(
             topic="harvested",
             producer_name=f"workspace_file_harvester/{workspace_name}",
-            chunking_enabled=True
+            chunking_enabled=True,
         )
 
         file_harvester_messager = FileHarvesterMessager(
@@ -127,8 +127,10 @@ async def harvest(workspace_name: str, s3_bucket: str):
                         self_url = f"/catalogs/user-datasets/catalogs/{workspace_name}/catalog/{data['id']}"
                         parent_url = f"/catalogs/user-datasets/catalogs/{workspace_name}"
                     elif entry_type == "Collection":
-                        self_url = (f"/catalogs/user-datasets/catalogs/{workspace_name}/"
-                                    f"collection/{data['id']}")
+                        self_url = (
+                            f"/catalogs/user-datasets/catalogs/{workspace_name}/"
+                            f"collection/{data['id']}"
+                        )
                         parent_url = f"/catalogs/user-datasets/catalogs/{workspace_name}"
                     else:
                         logging.error(f"Unrecognised entry type: {entry_type}")
