@@ -9,10 +9,8 @@ import boto3
 from botocore.exceptions import ClientError
 from eodhp_utils.aws.s3 import upload_file_s3
 from eodhp_utils.runner import get_boto3_session, get_pulsar_client, setup_logging
-from starlette.responses import JSONResponse
-
 from file_harvester.messager import FileHarvesterMessager
-
+from starlette.responses import JSONResponse
 
 setup_logging()
 
