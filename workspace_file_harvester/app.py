@@ -78,7 +78,7 @@ async def harvest(workspace_name: str, s3_bucket: str):
         harvested_data = {}
         latest_harvested = {}
 
-        logging.info(f"Harvesting from {workspace_name} {s3_bucket}")
+        logging.error(f"Harvesting from {workspace_name} {s3_bucket}")
 
         pulsar_client = get_pulsar_client()
         producer = pulsar_client.create_producer(
@@ -103,14 +103,14 @@ async def harvest(workspace_name: str, s3_bucket: str):
             return JSONResponse(
                 content={"message": "Wait a while before trying again"}, status_code=429
             )
-        logging.info(f"Previously harvested URLs: {previously_harvested}")
+        logging.error(f"Previously harvested URLs: {previously_harvested}")
 
         count = 0
         for details in s3_client.list_objects(
             Bucket=s3_bucket, Prefix=f"{workspace_name}/eodh-config/"
         )["Contents"]:
             key = details["Key"]
-            logging.info(f"{key} found")
+            logging.error(f"{key} found")
             raw_data, _ = get_file_s3(s3_bucket, key, s3_client)
 
             if raw_data:
@@ -153,7 +153,7 @@ async def harvest(workspace_name: str, s3_bucket: str):
                 file_hash = get_file_hash(json.dumps(data))
                 if not previous_hash or previous_hash != file_hash:
                     # URL was not harvested previously
-                    logging.info(f"Added: {key}")
+                    logging.error(f"Added: {key}")
                     harvested_data[key] = data
                     latest_harvested[key] = file_hash
 
@@ -172,14 +172,14 @@ async def harvest(workspace_name: str, s3_bucket: str):
         msg = {"harvested_data": harvested_data, "deleted_keys": []}
         file_harvester_messager.consume(msg)
 
-        logging.info("Complete")
+        logging.error("Complete")
     except Exception:
         logging.error(traceback.format_exc())
 
 
 @app.post("/{workspace_name}/harvest")
 async def root(workspace_name: str):
-
-    print(workspace_name, s3_bucket)
+    logging.error(f"Starting harvest for {workspace_name}")
     asyncio.create_task(harvest(workspace_name, s3_bucket))
+    logging.error("Complete")
     return JSONResponse(content={}, status_code=200)
