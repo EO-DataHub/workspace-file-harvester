@@ -4,7 +4,7 @@ import os
 from fastapi import FastAPI
 from starlette.responses import JSONResponse
 
-from workspace_file_harvester.harvester import harvest
+from harvester import harvest
 
 root_path = os.environ.get("ROOT_PATH", "/")
 app = FastAPI(root_path=root_path)
