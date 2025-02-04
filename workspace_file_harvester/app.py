@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import traceback
+import uuid
 
 import boto3
 from botocore.exceptions import ClientError
@@ -84,7 +85,7 @@ async def harvest(workspace_name: str, s3_bucket: str):
         pulsar_client = get_pulsar_client()
         producer = pulsar_client.create_producer(
             topic="harvested",
-            producer_name=f"workspace_file_harvester/{workspace_name}",
+            producer_name=f"workspace_file_harvester/{workspace_name}_{uuid.uuid1().hex}",
             chunking_enabled=True,
         )
 

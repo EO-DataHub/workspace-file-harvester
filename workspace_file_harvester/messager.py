@@ -37,7 +37,7 @@ class FileHarvesterMessager(Messager[str]):
 
     def gen_empty_catalogue_message(self, msg):
         return {
-            "id": "harvester/planet",
+            "id": "harvester/workspace_file_harvester",
             "workspace": "default_workspace",
             "repository": "",
             "branch": "",
