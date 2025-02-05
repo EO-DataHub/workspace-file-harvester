@@ -1,4 +1,5 @@
 import json
+import logging
 from typing import Sequence
 
 from eodhp_utils.messagers import Messager
@@ -11,6 +12,10 @@ class FileHarvesterMessager(Messager[str]):
     For example: git-harvester/supported-datasets/planet/collection/item
     Then sends a catalogue harvested message via Pulsar to trigger transformer and ingester.
     """
+    def __init__(self, **kwargs: dict):
+        self.workspace_name = kwargs["workspace_name"]
+        kwargs.pop("workspace_name")
+        super().__init__(**kwargs)
 
     def process_msg(self, msg: dict) -> Sequence[Messager.Action]:
 
@@ -18,13 +23,33 @@ class FileHarvesterMessager(Messager[str]):
         harvested_data = msg["harvested_data"]
         deleted_keys = msg["deleted_keys"]
         for key, value in harvested_data.items():
-            # Retrieve data
-            stac_data = value
+
+            data = json.loads(value)
+            links = data.get("links", [])
+            parent_link = next((item for item in links if item["rel"] == "parent"), None)
+
+            entry_type = data.get("type")
+
+            if entry_type:
+                entry_type = data["type"]
+                if parent_link:
+                    path = f"{parent_link['href'].rstrip('/')}/{data['id']}"
+                elif entry_type == "Feature":
+                    logging.error("Missing parent link")
+                    path = None
+                elif entry_type == "Catalog":
+                    path = f"{data['id']}"
+                elif entry_type == "Collection":
+                    path = f"{data['id']}"
+                else:
+                    logging.error(f"Unrecognised entry type: {entry_type}")
+
             # return action to save file to S3
             # bucket defaults to self.output_bucket
+            logging.error(path)
             action = Messager.OutputFileAction(
-                file_body=json.dumps(stac_data),
-                cat_path=key,
+                file_body=json.dumps(data),
+                cat_path=f"{path}.json",
             )
             action_list.append(action)
 
@@ -38,7 +63,7 @@ class FileHarvesterMessager(Messager[str]):
     def gen_empty_catalogue_message(self, msg):
         return {
             "id": "harvester/workspace_file_harvester",
-            "workspace": "default_workspace",
+            "workspace": self.workspace_name,
             "repository": "",
             "branch": "",
             "bucket_name": self.output_bucket,

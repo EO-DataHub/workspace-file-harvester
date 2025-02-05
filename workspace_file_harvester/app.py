@@ -19,7 +19,8 @@ root_path = os.environ.get("ROOT_PATH", "/")
 logging.error("Starting FastAPI")
 app = FastAPI(root_path=root_path)
 
-s3_bucket = os.environ.get("S3_BUCKET")
+source_s3_bucket = os.environ.get("SOURCE_S3_BUCKET")
+target_s3_bucket = os.environ.get("TARGET_S3_BUCKET")
 
 setup_logging()
 
@@ -45,10 +46,11 @@ def get_file_s3(bucket: str, key: str, s3_client: boto3.client) -> tuple:
         last_modified = datetime.datetime.strptime(
             file_obj["ResponseMetadata"]["HTTPHeaders"]["last-modified"], "%a, %d %b %Y %H:%M:%S %Z"
         )
-        return file_obj["Body"].read().decode("utf-8"), last_modified
+        file_contents = file_obj["Body"].read().decode("utf-8")
+        return file_contents, last_modified
     except ClientError as e:
         logging.warning(f"File retrieval failed for {key}: {e}")
-        return None
+        return {}, datetime.datetime(1970, 1, 1)
 
 
 def get_last_access_date(bucket: str, key: str, s3_client: boto3.client) -> str:
@@ -68,10 +70,12 @@ def get_metadata(bucket: str, key: str, s3_client: boto3.client) -> tuple:
         previously_harvested = json.loads(previously_harvested)
     except TypeError:
         previously_harvested = {}
+        last_modified = datetime.datetime(1970, 1, 1)
+
     return previously_harvested, last_modified
 
 
-async def harvest(workspace_name: str, s3_bucket: str):
+async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: str):
     s3_client = get_boto3_session().client("s3")
 
     try:
@@ -80,7 +84,7 @@ async def harvest(workspace_name: str, s3_bucket: str):
         harvested_data = {}
         latest_harvested = {}
 
-        logging.error(f"Harvesting from {workspace_name} {s3_bucket}")
+        logging.error(f"Harvesting from {workspace_name} {source_s3_bucket}")
 
         pulsar_client = get_pulsar_client()
         producer = pulsar_client.create_producer(
@@ -91,17 +95,19 @@ async def harvest(workspace_name: str, s3_bucket: str):
 
         file_harvester_messager = FileHarvesterMessager(
             s3_client=s3_client,
-            output_bucket=s3_bucket,
-            cat_output_prefix="git-harvester/",
+            output_bucket=target_s3_bucket,
+            cat_output_prefix=f"git-harvester/user-datasets/{workspace_name}/",
             producer=producer,
+            workspace_name=workspace_name,
         )
 
-        metadata_s3_key = f"harvested-metadata/workspaces/{workspace_name}"
-        previously_harvested, last_modified = get_metadata(s3_bucket, metadata_s3_key, s3_client)
+        metadata_s3_key = f"harvested-metadata/file-harvester/{workspace_name}"
+        previously_harvested, last_modified = get_metadata(target_s3_bucket, metadata_s3_key, s3_client)
         file_age = datetime.datetime.now() - last_modified
         if file_age < datetime.timedelta(
-            seconds=int(os.environ.get("RUNTIME_FREQUENCY_LIMIT", "60"))
+            seconds=int(os.environ.get("RUNTIME_FREQUENCY_LIMIT", "6"))
         ):
+            logging.error(f"Harvest not completed - previous harvest was {file_age} seconds ago")
             return JSONResponse(
                 content={"message": "Wait a while before trying again"}, status_code=429
             )
@@ -109,46 +115,12 @@ async def harvest(workspace_name: str, s3_bucket: str):
 
         count = 0
         for details in s3_client.list_objects(
-            Bucket=s3_bucket, Prefix=f"{workspace_name}/eodh-config/"
-        )["Contents"]:
+            Bucket=source_s3_bucket, Prefix=f"{workspace_name}/eodh-config/"
+        ).get("Contents", []):
             key = details["Key"]
-            logging.error(f"{key} found")
-            raw_data, _ = get_file_s3(s3_bucket, key, s3_client)
-
-            if raw_data:
-                data = json.loads(raw_data)
-                links = data.get("links", [])
-                self_link = next((item for item in links if item["rel"] == "self"), None)
-                parent_link = next((item for item in links if item["rel"] == "parent"), None)
-
-                entry_type = data.get("type")
-
-                if entry_type and not (self_link and parent_link):
-                    entry_type = data["type"]
-                    if parent_link:
-                        self_url = f"{parent_link['href'].rstrip('/')}/{data['id']}"
-                        parent_url = parent_link["href"].rstrip("/")
-                    elif entry_type == "Feature":
-                        logging.error("Missing parent link")
-                    elif entry_type == "Catalog":
-                        self_url = f"/catalogs/user-datasets/catalogs/{workspace_name}/catalog/{data['id']}"
-                        parent_url = f"/catalogs/user-datasets/catalogs/{workspace_name}"
-                    elif entry_type == "Collection":
-                        self_url = (
-                            f"/catalogs/user-datasets/catalogs/{workspace_name}/"
-                            f"collection/{data['id']}"
-                        )
-                        parent_url = f"/catalogs/user-datasets/catalogs/{workspace_name}"
-                    else:
-                        logging.error(f"Unrecognised entry type: {entry_type}")
-
-                    links = data.get("links", [])
-                    links.append({"rel": "self", "type": "application/json", "href": self_url})
-                    links.append({"rel": "parent", "type": "application/json", "href": parent_url})
-
-                    data["links"] = links
-
-                    harvested_data[key] = data
+            if not key.endswith("/"):
+                logging.error(f"{key} found")
+                data, _ = get_file_s3(source_s3_bucket, key, s3_client)
 
                 previous_hash = previously_harvested.pop(key, None)
 
@@ -157,23 +129,25 @@ async def harvest(workspace_name: str, s3_bucket: str):
                     # URL was not harvested previously
                     logging.error(f"Added: {key}")
                     harvested_data[key] = data
-                    latest_harvested[key] = file_hash
+                latest_harvested[key] = file_hash
 
                 if count > max_entries:
                     upload_file_s3(
-                        json.dumps(latest_harvested), s3_bucket, metadata_s3_key, s3_client
+                        json.dumps(latest_harvested), target_s3_bucket, metadata_s3_key, s3_client
                     )
                     msg = {"harvested_data": harvested_data, "deleted_keys": []}
                     file_harvester_messager.consume(msg)
+                    logging.error(f"Message sent: {msg}")
                     count = 0
-                    harvested_data = {}
+                    harvested_data ={}
 
-        # deleted_keys = list(previously_harvested.keys())
+        deleted_keys = list(previously_harvested.keys())
 
-        upload_file_s3(json.dumps(latest_harvested), s3_bucket, metadata_s3_key, s3_client)
-        msg = {"harvested_data": harvested_data, "deleted_keys": []}
+        upload_file_s3(json.dumps(latest_harvested), target_s3_bucket, metadata_s3_key, s3_client)
+        msg = {"harvested_data": harvested_data, "deleted_keys": deleted_keys, "workspace": workspace_name}
         file_harvester_messager.consume(msg)
 
+        logging.error(f"Message sent: {msg}")
         logging.error("Complete")
     except Exception:
         logging.error(traceback.format_exc())
@@ -182,6 +156,6 @@ async def harvest(workspace_name: str, s3_bucket: str):
 @app.post("/{workspace_name}/harvest")
 async def root(workspace_name: str):
     logging.error(f"Starting harvest for {workspace_name}")
-    asyncio.create_task(harvest(workspace_name, s3_bucket))
+    asyncio.create_task(harvest(workspace_name, source_s3_bucket, target_s3_bucket))
     logging.error("Complete")
     return JSONResponse(content={}, status_code=200)
