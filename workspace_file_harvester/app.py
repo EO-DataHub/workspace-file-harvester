@@ -102,7 +102,9 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
         )
 
         metadata_s3_key = f"harvested-metadata/file-harvester/{workspace_name}"
-        previously_harvested, last_modified = get_metadata(target_s3_bucket, metadata_s3_key, s3_client)
+        previously_harvested, last_modified = get_metadata(
+            target_s3_bucket, metadata_s3_key, s3_client
+        )
         file_age = datetime.datetime.now() - last_modified
         if file_age < datetime.timedelta(
             seconds=int(os.environ.get("RUNTIME_FREQUENCY_LIMIT", "6"))
@@ -139,12 +141,16 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
                     file_harvester_messager.consume(msg)
                     logging.error(f"Message sent: {msg}")
                     count = 0
-                    harvested_data ={}
+                    harvested_data = {}
 
         deleted_keys = list(previously_harvested.keys())
 
         upload_file_s3(json.dumps(latest_harvested), target_s3_bucket, metadata_s3_key, s3_client)
-        msg = {"harvested_data": harvested_data, "deleted_keys": deleted_keys, "workspace": workspace_name}
+        msg = {
+            "harvested_data": harvested_data,
+            "deleted_keys": deleted_keys,
+            "workspace": workspace_name,
+        }
         file_harvester_messager.consume(msg)
 
         logging.error(f"Message sent: {msg}")

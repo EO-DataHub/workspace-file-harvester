@@ -47,7 +47,7 @@ and on Ubuntu you may need
 
 To prepare running it:
 
-* `virtualenv venv -p python3.11`
+* `virtualenv venv -p python3.12`
 * `. venv/bin/activate`
 * `rehash`
 * `python -m ensurepip -U`

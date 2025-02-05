@@ -12,6 +12,7 @@ class FileHarvesterMessager(Messager[str]):
     For example: git-harvester/supported-datasets/planet/collection/item
     Then sends a catalogue harvested message via Pulsar to trigger transformer and ingester.
     """
+
     def __init__(self, **kwargs: dict):
         self.workspace_name = kwargs["workspace_name"]
         kwargs.pop("workspace_name")
@@ -22,7 +23,7 @@ class FileHarvesterMessager(Messager[str]):
         action_list = []
         harvested_data = msg["harvested_data"]
         deleted_keys = msg["deleted_keys"]
-        for key, value in harvested_data.items():
+        for _key, value in harvested_data.items():
 
             data = json.loads(value)
             links = data.get("links", [])
