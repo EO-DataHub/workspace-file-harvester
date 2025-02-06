@@ -7,15 +7,12 @@ from eodhp_utils.messagers import Messager
 
 class FileHarvesterMessager(Messager[str]):
     """
-    Loads STAC files harvested from the Planet API into an S3 bucket with file key relating to the
-    owning catalog combined with the file path in the external catalogue.
-    For example: git-harvester/supported-datasets/planet/collection/item
-    Then sends a catalogue harvested message via Pulsar to trigger transformer and ingester.
+    Searches for STAC files harvested from an S3 bucket into the harvested S3 bucket
+    then sends a catalogue harvested message via Pulsar to trigger transformer and ingester.
     """
 
-    def __init__(self, **kwargs: dict):
-        self.workspace_name = kwargs["workspace_name"]
-        kwargs.pop("workspace_name")
+    def __init__(self, workspace_name: str=None, **kwargs: dict):
+        self.workspace_name = workspace_name
         super().__init__(**kwargs)
 
     def process_msg(self, msg: dict) -> Sequence[Messager.Action]:
