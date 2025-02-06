@@ -29,7 +29,7 @@ class FileHarvesterMessager(Messager[str]):
 
             if entry_type:
                 if parent_link:
-                    path = f"{parent_link['href'].rstrip('/')}/{data['id']}"
+                    path = f"{parent_link['href'].rstrip('/').rstrip('.json')}/{data['id']}"
                 elif entry_type == "Feature":
                     logging.error(f"STAC item {data['id']} at {key} is missing parent link required for items")
                     path = None
