@@ -53,9 +53,8 @@ def get_file_s3(bucket: str, key: str, s3_client: boto3.client) -> tuple:
         return {}, datetime.datetime(1970, 1, 1)
 
 
-def get_metadata(bucket: str, workspace_name: str, s3_client: boto3.client) -> tuple:
+def get_metadata(bucket: str, key: str, s3_client: boto3.client) -> tuple:
     """Read file at given S3 location and parse as JSON"""
-    key = f"harvested-metadata/file-harvester/{workspace_name}"
     previously_harvested, last_modified = get_file_s3(bucket, key, s3_client)
     try:
         previously_harvested = json.loads(previously_harvested)
@@ -93,8 +92,9 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
             producer=producer,
         )
 
+        metadata_s3_key = f"harvested-metadata/file-harvester/{workspace_name}"
         previously_harvested, last_modified = get_metadata(
-            target_s3_bucket, workspace_name, s3_client
+            target_s3_bucket, metadata_s3_key, s3_client
         )
         file_age = datetime.datetime.now() - last_modified
         if file_age < datetime.timedelta(
@@ -115,14 +115,13 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
                 logging.error(f"{key} found")
                 data, _ = get_file_s3(source_s3_bucket, key, s3_client)
 
-                previous_hash = previously_harvested.pop(key, None)
-
-                file_hash = get_file_hash(json.dumps(data))
-                if not previous_hash or previous_hash != file_hash:
-                    # URL was not harvested previously
-                    logging.error(f"Added: {key}")
-                    harvested_data[key] = data
-                latest_harvested[key] = file_hash
+                previous_etag = previously_harvested.pop(key, None)
+                file_obj = s3_client.get_object(Bucket=target_s3_bucket, Key=key, IfNoneMatch=previous_etag)
+                if file_obj["ResponseMetadata"]["HTTPStatusCode"] != 304:
+                    harvested_data[key] = file_obj["Body"].read().decode("utf-8")
+                    latest_harvested[key] = file_obj["ETag"]
+                else:
+                    latest_harvested[key] = previous_etag
 
                 if count > max_entries:
                     upload_file_s3(
