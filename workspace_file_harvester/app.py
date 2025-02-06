@@ -76,6 +76,7 @@ def get_metadata(bucket: str, key: str, s3_client: boto3.client) -> tuple:
 
 
 async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: str):
+    """Run file harvesting for user's workspace"""
     s3_client = get_boto3_session().client("s3")
 
     try:

@@ -19,7 +19,6 @@ class FileHarvesterMessager(Messager[str]):
         super().__init__(**kwargs)
 
     def process_msg(self, msg: dict) -> Sequence[Messager.Action]:
-
         action_list = []
         harvested_data = msg["harvested_data"]
         deleted_keys = msg["deleted_keys"]
