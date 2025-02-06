@@ -53,16 +53,6 @@ def get_file_s3(bucket: str, key: str, s3_client: boto3.client) -> tuple:
         return {}, datetime.datetime(1970, 1, 1)
 
 
-def get_last_access_date(bucket: str, key: str, s3_client: boto3.client) -> str:
-    """Retrieve data from an S3 bucket"""
-    try:
-        file_obj = s3_client.get_object(Bucket=bucket, Key=key)
-        return file_obj["Body"].read().decode("utf-8")
-    except ClientError as e:
-        logging.warning(f"File retrieval failed for {key}: {e}")
-        return None
-
-
 def get_metadata(bucket: str, workspace_name: str, s3_client: boto3.client) -> tuple:
     """Read file at given S3 location and parse as JSON"""
     key = f"harvested-metadata/file-harvester/{workspace_name}"
@@ -98,7 +88,7 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
         file_harvester_messager = FileHarvesterMessager(
             s3_client=s3_client,
             output_bucket=target_s3_bucket,
-            cat_output_prefix=f"git-harvester/user-datasets/{workspace_name}/",
+            cat_output_prefix=f"file-harvester/user-datasets/{workspace_name}/",
             producer=producer,
             workspace_name=workspace_name,
         )
