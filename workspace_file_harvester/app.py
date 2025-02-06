@@ -63,8 +63,9 @@ def get_last_access_date(bucket: str, key: str, s3_client: boto3.client) -> str:
         return None
 
 
-def get_metadata(bucket: str, key: str, s3_client: boto3.client) -> tuple:
+def get_metadata(bucket: str, workspace_name: str, s3_client: boto3.client) -> tuple:
     """Read file at given S3 location and parse as JSON"""
+    key = f"harvested-metadata/file-harvester/{workspace_name}"
     previously_harvested, last_modified = get_file_s3(bucket, key, s3_client)
     try:
         previously_harvested = json.loads(previously_harvested)
@@ -102,9 +103,8 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
             workspace_name=workspace_name,
         )
 
-        metadata_s3_key = f"harvested-metadata/file-harvester/{workspace_name}"
         previously_harvested, last_modified = get_metadata(
-            target_s3_bucket, metadata_s3_key, s3_client
+            target_s3_bucket, workspace_name, s3_client
         )
         file_age = datetime.datetime.now() - last_modified
         if file_age < datetime.timedelta(
