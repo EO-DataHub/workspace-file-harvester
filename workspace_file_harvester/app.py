@@ -22,7 +22,7 @@ app = FastAPI(root_path=root_path)
 source_s3_bucket = os.environ.get("SOURCE_S3_BUCKET")
 target_s3_bucket = os.environ.get("TARGET_S3_BUCKET")
 
-setup_logging()
+setup_logging(verbosity=2)
 
 minimum_message_entries = int(os.environ.get("MINIMUM_MESSAGE_ENTRIES", 100))
 
@@ -79,7 +79,7 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
 
         pulsar_client = get_pulsar_client()
         producer = pulsar_client.create_producer(
-            topic="harvested",
+            topic=os.environ.get("PULSAR_TOPIC"),
             producer_name=f"workspace_file_harvester/{workspace_name}_{uuid.uuid1().hex}",
             chunking_enabled=True,
         )
@@ -108,7 +108,7 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
 
         count = 0
         for details in s3_client.list_objects(
-            Bucket=source_s3_bucket, Prefix=f"{workspace_name}/eodh-config/"
+            Bucket=source_s3_bucket, Prefix=f'{workspace_name}/{os.environ.get("EODH_CONFIG_DIR", "eodh-config")}/'
         ).get("Contents", []):
             key = details["Key"]
             if not key.endswith("/"):
