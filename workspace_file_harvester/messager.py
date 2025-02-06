@@ -58,11 +58,11 @@ class FileHarvesterMessager(Messager[str]):
 
     def gen_empty_catalogue_message(self, msg):
         return {
-            "id": "harvester/workspace_file_harvester",
+            "id": f"harvester/workspace_file_harvester/{self.workspace_name}",
             "workspace": self.workspace_name,
             "repository": "",
             "branch": "",
             "bucket_name": self.output_bucket,
-            "source": "",
-            "target": "",
+            "source": f"/{self.workspace_name}",
+            "target": f"/user-datasets/{self.workspace_name}",
         }
