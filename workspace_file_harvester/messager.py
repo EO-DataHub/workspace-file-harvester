@@ -22,7 +22,7 @@ class FileHarvesterMessager(Messager[str]):
         action_list = []
         harvested_data = msg["harvested_data"]
         deleted_keys = msg["deleted_keys"]
-        for _key, value in harvested_data.items():
+        for key, value in harvested_data.items():
 
             data = json.loads(value)
             links = data.get("links", [])
@@ -31,11 +31,10 @@ class FileHarvesterMessager(Messager[str]):
             entry_type = data.get("type")
 
             if entry_type:
-                entry_type = data["type"]
                 if parent_link:
                     path = f"{parent_link['href'].rstrip('/')}/{data['id']}"
                 elif entry_type == "Feature":
-                    logging.error("Missing parent link")
+                    logging.error(f"STAC item {data['id']} at {key} is missing parent link required for items")
                     path = None
                 elif entry_type == "Catalog":
                     path = f"{data['id']}"
