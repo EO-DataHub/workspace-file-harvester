@@ -108,7 +108,8 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
 
         count = 0
         for details in s3_client.list_objects(
-            Bucket=source_s3_bucket, Prefix=f'{workspace_name}/{os.environ.get("EODH_CONFIG_DIR", "eodh-config")}/'
+            Bucket=source_s3_bucket, Prefix=f'{workspace_name}/'
+                                            f'{os.environ.get("EODH_CONFIG_DIR", "eodh-config")}/'
         ).get("Contents", []):
             key = details["Key"]
             if not key.endswith("/"):
