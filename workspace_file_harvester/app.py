@@ -116,7 +116,7 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
                 logging.error(f"{key} found")
                 data, _ = get_file_s3(source_s3_bucket, key, s3_client)
 
-                previous_etag = previously_harvested.pop(key, None)
+                previous_etag = previously_harvested.pop(key, "")
                 file_obj = s3_client.get_object(Bucket=target_s3_bucket, Key=key, IfNoneMatch=previous_etag)
                 if file_obj["ResponseMetadata"]["HTTPStatusCode"] != 304:
                     harvested_data[key] = file_obj["Body"].read().decode("utf-8")
