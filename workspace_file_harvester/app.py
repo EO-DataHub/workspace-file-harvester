@@ -114,15 +114,21 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
             key = details["Key"]
             if not key.endswith("/"):
                 logging.error(f"{key} found")
-                data, _ = get_file_s3(source_s3_bucket, key, s3_client)
 
                 previous_etag = previously_harvested.pop(key, "")
-                file_obj = s3_client.get_object(Bucket=target_s3_bucket, Key=key, IfNoneMatch=previous_etag)
-                if file_obj["ResponseMetadata"]["HTTPStatusCode"] != 304:
-                    harvested_data[key] = file_obj["Body"].read().decode("utf-8")
-                    latest_harvested[key] = file_obj["ETag"]
-                else:
-                    latest_harvested[key] = previous_etag
+                file_obj = s3_client.get_object(Bucket=source_s3_bucket, Key=key, IfNoneMatch=previous_etag)
+                try:
+                    if file_obj["ResponseMetadata"]["HTTPStatusCode"] != 304:
+                        harvested_data[key] = file_obj["Body"].read().decode("utf-8")
+                        latest_harvested[key] = file_obj["ETag"]
+                    else:
+                        latest_harvested[key] = previous_etag
+                except ClientError as e:
+                    if "304" in str(e) and "Not modified" in str(e):
+                        latest_harvested[key] = previous_etag
+                    else:
+                        raise Exception from e
+
 
                 if count > max_entries:
                     upload_file_s3(
