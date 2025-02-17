@@ -11,7 +11,7 @@ class FileHarvesterMessager(Messager[str]):
     then sends a catalogue harvested message via Pulsar to trigger transformer and ingester.
     """
 
-    def __init__(self, workspace_name: str=None, **kwargs: dict):
+    def __init__(self, workspace_name: str = None, **kwargs: dict):
         self.workspace_name = workspace_name
         super().__init__(**kwargs)
 
@@ -31,8 +31,10 @@ class FileHarvesterMessager(Messager[str]):
                 if parent_link:
                     path = f"{parent_link['href'].rstrip('/').rstrip('.json')}/{data['id']}"
                 elif entry_type == "Feature":
-                    logging.error(f"STAC item {data['id']} at {key} is missing "
-                                  f"parent link required for items")
+                    logging.error(
+                        f"STAC item {data['id']} at {key} is missing "
+                        f"parent link required for items"
+                    )
                     path = None
                 elif entry_type == "Catalog":
                     path = f"{data['id']}"

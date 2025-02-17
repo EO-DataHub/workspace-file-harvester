@@ -35,10 +35,10 @@ run from GitHub actions.
 
 ### Alternative installation
 
-You will need Python 3.11. On Debian you may need:
+You will need Python 3.12. On Debian you may need:
 * `sudo add-apt-repository -y 'deb http://ppa.launchpad.net/deadsnakes/ppa/ubuntu focal main'` (or `jammy` in place of `focal` for later Debian)
 * `sudo apt update`
-* `sudo apt install python3.11 python3.11-venv`
+* `sudo apt install python3.12 python3.12-venv`
 
 and on Ubuntu you may need
 * `sudo add-apt-repository -y 'ppa:deadsnakes/ppa'`
