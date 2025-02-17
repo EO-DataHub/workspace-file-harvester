@@ -116,8 +116,8 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
                 logging.error(f"{key} found")
 
                 previous_etag = previously_harvested.pop(key, "")
-                file_obj = s3_client.get_object(Bucket=source_s3_bucket, Key=key, IfNoneMatch=previous_etag)
                 try:
+                    file_obj = s3_client.get_object(Bucket=source_s3_bucket, Key=key, IfNoneMatch=previous_etag)
                     if file_obj["ResponseMetadata"]["HTTPStatusCode"] != 304:
                         harvested_data[key] = file_obj["Body"].read().decode("utf-8")
                         latest_harvested[key] = file_obj["ETag"]
