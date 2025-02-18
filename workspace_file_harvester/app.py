@@ -101,7 +101,7 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
             datetime.timedelta(seconds=int(os.environ.get("RUNTIME_FREQUENCY_LIMIT", "10")))
             - file_age
         )
-        if time_until_next_attempt > 0:
+        if time_until_next_attempt.total_seconds() >= 0:
             logging.error(f"Harvest not completed - previous harvest was {file_age} seconds ago")
             return JSONResponse(
                 content={"message": f"Wait {time_until_next_attempt} seconds before trying again"},
