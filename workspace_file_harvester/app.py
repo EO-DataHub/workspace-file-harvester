@@ -22,7 +22,7 @@ app = FastAPI(root_path=root_path)
 source_s3_bucket = os.environ.get("SOURCE_S3_BUCKET")
 target_s3_bucket = os.environ.get("TARGET_S3_BUCKET")
 
-setup_logging(verbosity=2)
+setup_logging(verbosity=3)
 
 minimum_message_entries = int(os.environ.get("MINIMUM_MESSAGE_ENTRIES", 100))
 
