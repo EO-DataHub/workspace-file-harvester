@@ -16,7 +16,7 @@ from messager import FileHarvesterMessager
 from starlette.responses import JSONResponse
 
 root_path = os.environ.get("ROOT_PATH", "/")
-logging.error("Starting FastAPI")
+logging.info("Starting FastAPI")
 app = FastAPI(root_path=root_path)
 
 source_s3_bucket = os.environ.get("SOURCE_S3_BUCKET")
@@ -75,7 +75,7 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
         harvested_data = {}
         latest_harvested = {}
 
-        logging.error(f"Harvesting from {workspace_name} {source_s3_bucket}")
+        logging.info(f"Harvesting from {workspace_name} {source_s3_bucket}")
 
         pulsar_client = get_pulsar_client()
         producer = pulsar_client.create_producer(
@@ -97,14 +97,15 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
             target_s3_bucket, metadata_s3_key, s3_client
         )
         file_age = datetime.datetime.now() - last_modified
-        if file_age < datetime.timedelta(
-            seconds=int(os.environ.get("RUNTIME_FREQUENCY_LIMIT", "6"))
-        ):
+        time_until_next_attempt = datetime.timedelta(
+            seconds=int(os.environ.get("RUNTIME_FREQUENCY_LIMIT", "10"))
+        ) - file_age
+        if time_until_next_attempt > 0:
             logging.error(f"Harvest not completed - previous harvest was {file_age} seconds ago")
             return JSONResponse(
-                content={"message": "Wait a while before trying again"}, status_code=429
+                content={"message": f'Wait {time_until_next_attempt} seconds before trying again'}, status_code=429
             )
-        logging.error(f"Previously harvested URLs: {previously_harvested}")
+        logging.info(f"Previously harvested URLs: {previously_harvested}")
 
         count = 0
         for details in s3_client.list_objects(
@@ -113,7 +114,7 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
         ).get("Contents", []):
             key = details["Key"]
             if not key.endswith("/"):
-                logging.error(f"{key} found")
+                logging.info(f"{key} found")
 
                 previous_etag = previously_harvested.pop(key, "")
                 try:
@@ -152,15 +153,15 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
         }
         file_harvester_messager.consume(msg)
 
-        logging.error(f"Message sent: {msg}")
-        logging.error("Complete")
+        logging.info(f"Message sent: {msg}")
+        logging.info("Complete")
     except Exception:
         logging.error(traceback.format_exc())
 
 
 @app.post("/{workspace_name}/harvest")
 async def root(workspace_name: str):
-    logging.error(f"Starting harvest for {workspace_name}")
+    logging.info(f"Starting harvest for {workspace_name}")
     asyncio.create_task(harvest(workspace_name, source_s3_bucket, target_s3_bucket))
-    logging.error("Complete")
+    logging.info("Complete")
     return JSONResponse(content={}, status_code=200)
