@@ -67,5 +67,5 @@ class FileHarvesterMessager(Messager[str]):
             "branch": "",
             "bucket_name": self.output_bucket,
             "source": "/",
-            "target": f"/user-datasets/{self.workspace_name}/",
+            "target": f"/",
         }
