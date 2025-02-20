@@ -19,6 +19,9 @@ class FileHarvesterMessager(Messager[str]):
         action_list = []
         harvested_data = msg["harvested_data"]
         deleted_keys = msg["deleted_keys"]
+
+        entry_type_dict = {"Collection": "collections", "Catalog", "catalogs", "Feature": "items"}
+
         for key, value in harvested_data.items():
 
             data = json.loads(value)
@@ -29,7 +32,7 @@ class FileHarvesterMessager(Messager[str]):
 
             if entry_type:
                 if parent_link:
-                    path = f"{parent_link['href'].rstrip('/').rstrip('.json')}/{data['id']}"
+                    path = f"{parent_link['href'].rstrip('/').rstrip('.json')}/{entry_type_dict[entry_type]}/{data['id']}"
                 elif entry_type == "Feature":
                     logging.error(
                         f"STAC item {data['id']} at {key} is missing "
@@ -37,9 +40,9 @@ class FileHarvesterMessager(Messager[str]):
                     )
                     path = None
                 elif entry_type == "Catalog":
-                    path = f"{data['id']}"
+                    path = f"catalogue/{data['id']}"
                 elif entry_type == "Collection":
-                    path = f"{data['id']}"
+                    path = f"collection/{data['id']}"
                 else:
                     logging.error(f"Unrecognised entry type: {entry_type}")
 
