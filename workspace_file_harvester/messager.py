@@ -44,7 +44,7 @@ class FileHarvesterMessager(Messager[str]):
                 elif entry_type == "Catalog":
                     path = data['id']
                 elif entry_type == "Collection":
-                    path = f"collection/{data['id']}"
+                    path = f"{entry_type_dict[entry_type]}/{data['id']}"
                 else:
                     logging.error(f"Unrecognised entry type: {entry_type}")
 
@@ -71,6 +71,6 @@ class FileHarvesterMessager(Messager[str]):
             "repository": "",
             "branch": "",
             "bucket_name": self.output_bucket,
-            "source": "/",
+            "source": f"/{self.workspace_name}-eodhp-config",
             "target": f"/",
         }
