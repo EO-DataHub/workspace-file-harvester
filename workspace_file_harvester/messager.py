@@ -42,7 +42,7 @@ class FileHarvesterMessager(Messager[str]):
                     )
                     path = None
                 elif entry_type == "Catalog":
-                    path = f"catalogue/{data['id']}"
+                    path = data['id']
                 elif entry_type == "Collection":
                     path = f"collection/{data['id']}"
                 else:
