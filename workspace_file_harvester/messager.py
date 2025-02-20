@@ -44,7 +44,7 @@ class FileHarvesterMessager(Messager[str]):
                 elif entry_type == "Catalog":
                     path = data['id']
                 elif entry_type == "Collection":
-                    path = f"{entry_type_dict[entry_type]}/{data['id']}"
+                    path = data['id']
                 else:
                     logging.error(f"Unrecognised entry type: {entry_type}")
 
