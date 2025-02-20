@@ -4,6 +4,7 @@ from typing import Sequence
 
 from eodhp_utils.messagers import Messager
 
+entry_type_dict = {"Collection": "collections", "Catalog": "catalogs", "Feature": "items"}
 
 class FileHarvesterMessager(Messager[str]):
     """
@@ -19,8 +20,6 @@ class FileHarvesterMessager(Messager[str]):
         action_list = []
         harvested_data = msg["harvested_data"]
         deleted_keys = msg["deleted_keys"]
-
-        entry_type_dict = {"Collection": "collections", "Catalog", "catalogs", "Feature": "items"}
 
         for key, value in harvested_data.items():
 
