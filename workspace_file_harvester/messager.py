@@ -32,10 +32,9 @@ class FileHarvesterMessager(Messager[str]):
             if entry_type:
                 if parent_link:
                     parent_path = parent_link['href'].rstrip('/').rstrip('.json')
-                    if not entry_type == "Catalog":
-                        parent_path = "/".join(parent_path.split("/")[:-1]) + "/catalogue/" + parent_path.split("/")[-1]
 
                     path = f"{parent_path}/{entry_type_dict[entry_type]}/{data['id']}"
+
                 elif entry_type == "Feature":
                     logging.error(
                         f"STAC item {data['id']} at {key} is missing "
