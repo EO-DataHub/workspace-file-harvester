@@ -6,6 +6,7 @@ from eodhp_utils.messagers import Messager
 
 entry_type_dict = {"Collection": "collections", "Catalog": "catalogs", "Feature": "items"}
 
+
 class FileHarvesterMessager(Messager[str]):
     """
     Searches for STAC files harvested from an S3 bucket into the harvested S3 bucket
@@ -31,7 +32,7 @@ class FileHarvesterMessager(Messager[str]):
 
             if entry_type:
                 if parent_link:
-                    parent_path = parent_link['href'].rstrip('/').rstrip('.json')
+                    parent_path = parent_link["href"].rstrip("/").rstrip(".json")
 
                     path = f"{parent_path}/{entry_type_dict[entry_type]}/{data['id']}"
 
@@ -42,9 +43,9 @@ class FileHarvesterMessager(Messager[str]):
                     )
                     path = None
                 elif entry_type == "Catalog":
-                    path = data['id']
+                    path = data["id"]
                 elif entry_type == "Collection":
-                    path = data['id']
+                    path = data["id"]
                 else:
                     logging.error(f"Unrecognised entry type: {entry_type}")
 
@@ -71,6 +72,6 @@ class FileHarvesterMessager(Messager[str]):
             "repository": "",
             "branch": "",
             "bucket_name": self.output_bucket,
-            "source": "/",
-            "target": "/",
+            "source": f"/{self.workspace_name}-eodhp-config",
+            "target": f"/file-harvester",
         }
