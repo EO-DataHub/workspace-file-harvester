@@ -111,7 +111,7 @@ markers = [
 ]
 
 [tool.setuptools]
-packages = []
+packages = ["workspace_file_harvester"]
 
 [tool.black]
 line-length = 100
