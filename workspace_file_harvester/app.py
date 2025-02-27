@@ -1,6 +1,5 @@
 import asyncio
 import datetime
-import hashlib
 import json
 import logging
 import os
@@ -27,18 +26,6 @@ setup_logging(verbosity=2)
 minimum_message_entries = int(os.environ.get("MINIMUM_MESSAGE_ENTRIES", 100))
 
 
-# def get_file_hash(data: str) -> str:
-#     """Returns hash of data available"""
-#
-#     def _md5_hash(byte_str: bytes) -> str:
-#         """Calculates an md5 hash for given bytestring"""
-#         md5 = hashlib.md5()
-#         md5.update(byte_str)
-#         return md5.hexdigest()
-#
-#     return _md5_hash(data.encode("utf-8"))
-
-
 def get_file_s3(bucket: str, key: str, s3_client: boto3.client) -> tuple:
     """Retrieve data from an S3 bucket"""
     try:
@@ -51,18 +38,6 @@ def get_file_s3(bucket: str, key: str, s3_client: boto3.client) -> tuple:
     except ClientError as e:
         logging.warning(f"File retrieval failed for {key}: {e}")
         return {}, datetime.datetime(1970, 1, 1)
-
-
-# def get_metadata(bucket: str, key: str, s3_client: boto3.client) -> tuple:
-#     """Read file at given S3 location and parse as JSON"""
-#     previously_harvested, last_modified = get_file_s3(bucket, key, s3_client)
-#     try:
-#         previously_harvested = json.loads(previously_harvested)
-#     except TypeError:
-#         previously_harvested = {}
-#         last_modified = datetime.datetime(1970, 1, 1)
-#
-#     return previously_harvested, last_modified
 
 
 async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: str):
@@ -130,7 +105,7 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
                     else:
                         latest_harvested[key] = previous_etag
                 except ClientError as e:
-                    if e.response['ResponseMetadata']['HTTPStatusCode'] == 304:
+                    if e.response["ResponseMetadata"]["HTTPStatusCode"] == 304:
                         latest_harvested[key] = previous_etag
                     else:
                         raise Exception from e
