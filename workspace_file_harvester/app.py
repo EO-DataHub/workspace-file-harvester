@@ -130,7 +130,7 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
                     else:
                         latest_harvested[key] = previous_etag
                 except ClientError as e:
-                    if e.response['ResponseMetadata']['HTTPStatusCode'] == '304':
+                    if e.response['ResponseMetadata']['HTTPStatusCode'] == 304:
                         latest_harvested[key] = previous_etag
                     else:
                         raise Exception from e
