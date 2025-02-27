@@ -50,7 +50,7 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
         harvested_data = {}
         latest_harvested = {}
 
-        logging.error(f"Harvesting from {workspace_name} {source_s3_bucket}")
+        logging.info(f"Harvesting from {workspace_name} {source_s3_bucket}")
 
         pulsar_client = get_pulsar_client()
         producer = pulsar_client.create_producer(
@@ -83,7 +83,7 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
                 content={"message": f"Wait {time_until_next_attempt} seconds before trying again"},
                 status_code=429,
             )
-        logging.error(f"Previously harvested URLs: {previously_harvested}")
+        logging.info(f"Previously harvested URLs: {previously_harvested}")
 
         count = 0
         for details in s3_client.list_objects(
@@ -92,7 +92,7 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
         ).get("Contents", []):
             key = details["Key"]
             if not key.endswith("/"):
-                logging.error(f"{key} found")
+                logging.info(f"{key} found")
 
                 previous_etag = previously_harvested.pop(key, "")
                 try:
@@ -116,7 +116,7 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
                     )
                     msg = {"harvested_data": harvested_data, "deleted_keys": []}
                     file_harvester_messager.consume(msg)
-                    logging.error(f"Message sent: {msg}")
+                    logging.info(f"Message sent: {msg}")
                     count = 0
                     harvested_data = {}
 
@@ -130,15 +130,15 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
         }
         file_harvester_messager.consume(msg)
 
-        logging.error(f"Message sent: {msg}")
-        logging.error("Complete")
+        logging.info(f"Message sent: {msg}")
+        logging.info("Complete")
     except Exception:
         logging.error(traceback.format_exc())
 
 
 @app.post("/{workspace_name}/harvest")
 async def root(workspace_name: str):
-    logging.error(f"Starting harvest for {workspace_name}")
+    logging.info(f"Starting harvest for {workspace_name}")
     asyncio.create_task(harvest(workspace_name, source_s3_bucket, target_s3_bucket))
-    logging.error("Complete")
+    logging.info("Complete")
     return JSONResponse(content={}, status_code=200)
