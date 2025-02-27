@@ -93,9 +93,10 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
         )
 
         metadata_s3_key = f"harvested-metadata/file-harvester/{workspace_name}"
-        previously_harvested, last_modified = json.loads(get_file_s3(
+        harvested_raw_data, last_modified = get_file_s3(
             target_s3_bucket, metadata_s3_key, s3_client
-        ))
+        )
+        previously_harvested = json.loads(harvested_raw_data)
         file_age = datetime.datetime.now() - last_modified
         time_until_next_attempt = (
             datetime.timedelta(seconds=int(os.environ.get("RUNTIME_FREQUENCY_LIMIT", "10")))
