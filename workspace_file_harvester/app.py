@@ -27,16 +27,16 @@ setup_logging(verbosity=2)
 minimum_message_entries = int(os.environ.get("MINIMUM_MESSAGE_ENTRIES", 100))
 
 
-def get_file_hash(data: str) -> str:
-    """Returns hash of data available"""
-
-    def _md5_hash(byte_str: bytes) -> str:
-        """Calculates an md5 hash for given bytestring"""
-        md5 = hashlib.md5()
-        md5.update(byte_str)
-        return md5.hexdigest()
-
-    return _md5_hash(data.encode("utf-8"))
+# def get_file_hash(data: str) -> str:
+#     """Returns hash of data available"""
+#
+#     def _md5_hash(byte_str: bytes) -> str:
+#         """Calculates an md5 hash for given bytestring"""
+#         md5 = hashlib.md5()
+#         md5.update(byte_str)
+#         return md5.hexdigest()
+#
+#     return _md5_hash(data.encode("utf-8"))
 
 
 def get_file_s3(bucket: str, key: str, s3_client: boto3.client) -> tuple:
@@ -53,16 +53,16 @@ def get_file_s3(bucket: str, key: str, s3_client: boto3.client) -> tuple:
         return {}, datetime.datetime(1970, 1, 1)
 
 
-def get_metadata(bucket: str, key: str, s3_client: boto3.client) -> tuple:
-    """Read file at given S3 location and parse as JSON"""
-    previously_harvested, last_modified = get_file_s3(bucket, key, s3_client)
-    try:
-        previously_harvested = json.loads(previously_harvested)
-    except TypeError:
-        previously_harvested = {}
-        last_modified = datetime.datetime(1970, 1, 1)
-
-    return previously_harvested, last_modified
+# def get_metadata(bucket: str, key: str, s3_client: boto3.client) -> tuple:
+#     """Read file at given S3 location and parse as JSON"""
+#     previously_harvested, last_modified = get_file_s3(bucket, key, s3_client)
+#     try:
+#         previously_harvested = json.loads(previously_harvested)
+#     except TypeError:
+#         previously_harvested = {}
+#         last_modified = datetime.datetime(1970, 1, 1)
+#
+#     return previously_harvested, last_modified
 
 
 async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: str):
@@ -93,9 +93,9 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
         )
 
         metadata_s3_key = f"harvested-metadata/file-harvester/{workspace_name}"
-        previously_harvested, last_modified = get_metadata(
+        previously_harvested, last_modified = json.loads(get_file_s3(
             target_s3_bucket, metadata_s3_key, s3_client
-        )
+        ))
         file_age = datetime.datetime.now() - last_modified
         time_until_next_attempt = (
             datetime.timedelta(seconds=int(os.environ.get("RUNTIME_FREQUENCY_LIMIT", "10")))
@@ -129,8 +129,7 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
                     else:
                         latest_harvested[key] = previous_etag
                 except ClientError as e:
-                    error_text = str(e)
-                    if "304" in error_text and "not modified" in error_text.lower():
+                    if e.response['ResponseMetadata']['HTTPStatusCode'] == '304':
                         latest_harvested[key] = previous_etag
                     else:
                         raise Exception from e
