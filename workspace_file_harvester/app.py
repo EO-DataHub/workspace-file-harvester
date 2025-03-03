@@ -37,7 +37,7 @@ def get_file_s3(bucket: str, key: str, s3_client: boto3.client) -> tuple:
         return file_contents, last_modified
     except ClientError as e:
         logging.warning(f"File retrieval failed for {key}: {e}")
-        return {}, datetime.datetime(1970, 1, 1)
+        return "{}", datetime.datetime(1970, 1, 1)
 
 
 async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: str):
