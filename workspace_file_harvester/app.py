@@ -15,7 +15,7 @@ from messager import FileHarvesterMessager
 from starlette.responses import JSONResponse
 
 root_path = os.environ.get("ROOT_PATH", "/")
-logging.error("Starting FastAPI")
+logging.info("Starting FastAPI")
 app = FastAPI(root_path=root_path)
 
 source_s3_bucket = os.environ.get("SOURCE_S3_BUCKET")
