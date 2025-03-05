@@ -63,7 +63,7 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
             workspace_name=workspace_name,
             s3_client=s3_client,
             output_bucket=target_s3_bucket,
-            cat_output_prefix=f"file-harvester/{workspace_name}-eodhp-config/user-datasets/{workspace_name}/",
+            cat_output_prefix=f"file-harvester/{workspace_name}-eodhp-config/user/{workspace_name}/",
             producer=producer,
         )
 
