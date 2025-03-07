@@ -1,7 +1,7 @@
 .PHONY: dockerbuild dockerpush test testonce ruff black lint isort pre-commit-check requirements-update requirements setup
 VERSION ?= latest
-IMAGENAME = CHANGEME
-DOCKERREPO ?= public.ecr.aws/n1b3o1k2/ukeodhp
+IMAGENAME = workspace-file-harvester
+DOCKERREPO ?= public.ecr.aws/n1b3o1k2
 
 dockerbuild:
 	DOCKER_BUILDKIT=1 docker build -t ${IMAGENAME}:${VERSION} .
@@ -11,7 +11,7 @@ dockerpush: dockerbuild testdocker
 	docker push ${DOCKERREPO}/${IMAGENAME}:${VERSION}
 
 test:
-	./venv/bin/ptw CHANGEME-test-package-names
+	./venv/bin/ptw workspace-file-harvester
 
 testonce:
 	./venv/bin/pytest
@@ -43,7 +43,7 @@ requirements-update: venv
 	./venv/bin/pip-compile --extra dev -o requirements-dev.txt -U
 
 venv:
-	virtualenv -p python3.11 venv
+	virtualenv -p python3.12 venv
 	./venv/bin/python -m ensurepip -U
 	./venv/bin/pip3 install pip-tools
 
