@@ -72,6 +72,6 @@ class FileHarvesterMessager(Messager[str]):
             "repository": "",
             "branch": "",
             "bucket_name": self.output_bucket,
-            "source": f"/{self.workspace_name}-eodhp-config",
+            "source": f"{self.workspace_name}-eodhp-config",
             "target": "",
         }
