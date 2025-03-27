@@ -5,6 +5,7 @@ import logging
 import os
 import traceback
 import uuid
+from json import JSONDecodeError
 
 import boto3
 from botocore.exceptions import ClientError
@@ -20,10 +21,61 @@ app = FastAPI(root_path=root_path)
 
 source_s3_bucket = os.environ.get("SOURCE_S3_BUCKET")
 target_s3_bucket = os.environ.get("TARGET_S3_BUCKET")
+data_access_control_s3_bucket = os.environ.get("DATA_ACCESS_CONTROL_S3_BUCKET")
+env_name = os.environ.get("ENV_NAME")
+env_tag = f"-{env_name}" if env_name else ""
+
+object_store_names = {"object-store": f"workspaces-eodhp{env_tag}"}
+block_store_names = {"block-store": "workspaces"}
+
 
 setup_logging(verbosity=2)
 
 minimum_message_entries = int(os.environ.get("MINIMUM_MESSAGE_ENTRIES", 100))
+
+
+def generate_store_policies(data: json, map: dict) -> dict:
+    """Generates policies for a give block/object store"""
+    buckets = {}
+    for store, values in data.items():
+        policies = []
+        for path, access in values.items():
+            policies.append({"path": path, "access": access["access"]})
+
+        if store_name := map.get(store):
+            buckets[store_name] = {"accessControl": policies}
+        else:
+            logging.warning(f"Name {store} not valid")
+
+    return buckets
+
+
+def generate_block_object_store_policy(block_data: json, object_data: json):
+    """Generates a combined policy for block and object stores"""
+
+    block_policies = generate_store_policies(block_data, block_store_names)
+    object_policies = generate_store_policies(object_data, object_store_names)
+
+    return {"buckets" : object_policies, "efs-volumes": block_policies}
+
+
+def create_access_policies(raw_data: str) -> tuple:
+    """Generates """
+    try:
+        data = json.loads(raw_data)
+    except json.decoder.JSONDecodeError as e:
+        logging.error(f"Data is in incorrect format. Must be JSON: {raw_data}")
+        raise e
+
+    raw_block_store_data = {key: value for key, value in data.items() if 'block-store' in key}
+    raw_object_store_data = {key: value for key, value in data.items() if 'object-store' in key}
+    raw_catalogues_data = data.get("catalogue", {})
+    raw_workflows_data = data.get("workflows", {})
+
+    formatted_block_object_store_data = generate_block_object_store_policy(block_data=raw_block_store_data, object_data=raw_object_store_data)
+    formatted_catalogues_data = formatted_workflows_data = 3
+
+    return formatted_block_object_store_data, formatted_catalogues_data, formatted_workflows_data
 
 
 def get_file_s3(bucket: str, key: str, s3_client: boto3.client) -> tuple:
@@ -52,19 +104,19 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
 
         logging.info(f"Harvesting from {workspace_name} {source_s3_bucket}")
 
-        pulsar_client = get_pulsar_client()
-        producer = pulsar_client.create_producer(
-            topic=os.environ.get("PULSAR_TOPIC"),
-            producer_name=f"workspace_file_harvester/{workspace_name}_{uuid.uuid1().hex}",
-            chunking_enabled=True,
-        )
+        # pulsar_client = get_pulsar_client()
+        # producer = pulsar_client.create_producer(
+        #     topic=os.environ.get("PULSAR_TOPIC"),
+        #     producer_name=f"workspace_file_harvester/{workspace_name}_{uuid.uuid1().hex}",
+        #     chunking_enabled=True,
+        # )
 
         file_harvester_messager = FileHarvesterMessager(
             workspace_name=workspace_name,
             s3_client=s3_client,
             output_bucket=target_s3_bucket,
             cat_output_prefix=f"file-harvester/{workspace_name}-eodhp-config/catalogs/user/catalogs/{workspace_name}/",
-            producer=producer,
+            producer=2#producer,
         )
 
         metadata_s3_key = f"harvested-metadata/file-harvester/{workspace_name}"
@@ -100,8 +152,18 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
                         Bucket=source_s3_bucket, Key=key, IfNoneMatch=previous_etag
                     )
                     if file_obj["ResponseMetadata"]["HTTPStatusCode"] != 304:
-                        harvested_data[key] = file_obj["Body"].read().decode("utf-8")
-                        latest_harvested[key] = file_obj["ETag"]
+                        # latest_harvested[key] = file_obj["ETag"]
+                        file_data = file_obj["Body"].read().decode("utf-8")
+
+                        if key.endswith("/access-policy.json"):  # don't need to send this one in a pulsar message - it's not STAC-compliant
+                            block_store_key = f"{workspace_name}-access_policy.json"
+                            block_store_access_policies, catalogues_access_policies, workflows_access_policies = create_access_policies(file_data)
+                            upload_file_s3(
+                                json.dumps(block_store_access_policies), data_access_control_s3_bucket, block_store_key, s3_client
+                            )
+                            print(block_store_access_policies, data_access_control_s3_bucket, block_store_key)
+                        else:
+                            harvested_data[key] = file_data
                     else:
                         latest_harvested[key] = previous_etag
                 except ClientError as e:
@@ -128,7 +190,7 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
             "deleted_keys": deleted_keys,
             "workspace": workspace_name,
         }
-        file_harvester_messager.consume(msg)
+        # file_harvester_messager.consume(msg)
 
         logging.info(f"Message sent: {msg}")
         logging.info("Complete")
