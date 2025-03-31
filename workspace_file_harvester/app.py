@@ -21,7 +21,9 @@ app = FastAPI(root_path=root_path)
 
 source_s3_bucket = os.environ.get("SOURCE_S3_BUCKET")
 target_s3_bucket = os.environ.get("TARGET_S3_BUCKET")
-data_access_control_s3_bucket = os.environ.get("DATA_ACCESS_CONTROL_S3_BUCKET")
+block_object_store_data_access_control_s3_bucket = os.environ.get("BLOCK_OBJECT_STORE_DATA_ACCESS_CONTROL_S3_BUCKET")
+catalogue_data_access_control_s3_bucket = os.environ.get("CATALOGUE_DATA_ACCESS_CONTROL_S3_BUCKET")
+workflow_access_control_s3_bucket = os.environ.get("WORKFLOW_DATA_ACCESS_CONTROL_S3_BUCKET")
 env_name = os.environ.get("ENV_NAME")
 env_tag = f"-{env_name}" if env_name else ""
 
@@ -50,7 +52,7 @@ def generate_store_policies(data: json, map: dict) -> dict:
     return buckets
 
 
-def generate_block_object_store_policy(block_data: json, object_data: json):
+def generate_block_object_store_policy(block_data: dict, object_data: dict) -> dict:
     """Generates a combined policy for block and object stores"""
 
     block_policies = generate_store_policies(block_data, block_store_names)
@@ -59,7 +61,29 @@ def generate_block_object_store_policy(block_data: json, object_data: json):
     return {"buckets" : object_policies, "efs-volumes": block_policies}
 
 
-def create_access_policies(raw_data: str) -> tuple:
+def generate_catalogue_policy(data: dict, workspace_name: str) -> dict:
+    """Generates a policy for catalogues"""
+    policies = []
+    for path, access in data.items():
+        path = path.lstrip('/')
+        long_path = f"/catalogs/user/catalogs/{workspace_name}/catalogs/processing-results/catalogs/{path}"
+        policies.append({"path": long_path, "access": {"public": access['access'] == "public"}, "acl": []})
+
+    return {"policies": policies}
+
+
+def generate_workflow_policy(data: dict) -> list:
+    """Generates policies for workflows"""
+
+    workflows = []
+
+    for name, values in data.items():
+        workflows.append({"name": name, "policy": {"id": name, "public": values['access'] == "public", "user_service": values.get('type', False) == "user-service"}})
+
+    return workflows
+
+
+def create_access_policies(raw_data: str, workspace_name: str) -> tuple:
     """Generates """
     try:
         data = json.loads(raw_data)
@@ -73,9 +97,53 @@ def create_access_policies(raw_data: str) -> tuple:
     raw_workflows_data = data.get("workflows", {})
 
     formatted_block_object_store_data = generate_block_object_store_policy(block_data=raw_block_store_data, object_data=raw_object_store_data)
-    formatted_catalogues_data = formatted_workflows_data = 3
+    formatted_catalogues_data = generate_catalogue_policy(raw_catalogues_data, workspace_name)
+    formatted_workflows_data = generate_workflow_policy(raw_workflows_data)
 
     return formatted_block_object_store_data, formatted_catalogues_data, formatted_workflows_data
+
+
+def generate_access_policies(file_data, workspace_name, s3_client):
+    logging.info(f"Access policies found for {workspace_name}")
+    block_object_store_key = f"{workspace_name}-access_policy.json"
+    catalogue_key = f"{workspace_name}/{workspace_name}-meta_access_policy.json"
+
+    block_store_access_policies, catalogue_access_policies, workflow_access_policies = create_access_policies(
+        file_data, workspace_name)
+
+    upload_file_s3(
+        json.dumps(block_store_access_policies), block_object_store_data_access_control_s3_bucket,
+        block_object_store_key, s3_client
+    )
+    upload_file_s3(
+        json.dumps(catalogue_access_policies), catalogue_data_access_control_s3_bucket, catalogue_key, s3_client
+    )
+
+    for workflow_policy in workflow_access_policies:
+        workflow_key = f"deployed/{workspace_name}/{workflow_policy['name']}.access_policy.json"
+        upload_file_s3(
+            json.dumps(workflow_policy['policy']), workflow_access_control_s3_bucket, workflow_key, s3_client
+        )
+
+    pulsar_client = get_pulsar_client()
+    producer = pulsar_client.create_producer(
+        topic=os.environ.get("PULSAR_TOPIC", "harvested"),
+        producer_name=f"workspace_file_harvester/{workspace_name}_workspace_{uuid.uuid1().hex}",
+        chunking_enabled=True,
+    )
+
+    producer.send((json.dumps({
+            "id": f"harvester/workspace_file_harvester/{workspace_name}/workspaces",
+            "workspace": workspace_name,
+            "repository": "",
+            "branch": "",
+            "bucket_name": catalogue_data_access_control_s3_bucket,
+            "source": "",
+            "target": "",
+        "added_keys": [catalogue_key]
+    })).encode('utf-8'))
+
+    pulsar_client.close()
 
 
 def get_file_s3(bucket: str, key: str, s3_client: boto3.client) -> tuple:
@@ -104,19 +172,19 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
 
         logging.info(f"Harvesting from {workspace_name} {source_s3_bucket}")
 
-        # pulsar_client = get_pulsar_client()
-        # producer = pulsar_client.create_producer(
-        #     topic=os.environ.get("PULSAR_TOPIC"),
-        #     producer_name=f"workspace_file_harvester/{workspace_name}_{uuid.uuid1().hex}",
-        #     chunking_enabled=True,
-        # )
+        pulsar_client = get_pulsar_client()
+        producer = pulsar_client.create_producer(
+            topic=os.environ.get("PULSAR_TOPIC"),
+            producer_name=f"workspace_file_harvester/{workspace_name}_{uuid.uuid1().hex}",
+            chunking_enabled=True,
+        )
 
         file_harvester_messager = FileHarvesterMessager(
             workspace_name=workspace_name,
             s3_client=s3_client,
             output_bucket=target_s3_bucket,
             cat_output_prefix=f"file-harvester/{workspace_name}-eodhp-config/catalogs/user/catalogs/{workspace_name}/",
-            producer=2#producer,
+            producer=producer,
         )
 
         metadata_s3_key = f"harvested-metadata/file-harvester/{workspace_name}"
@@ -152,16 +220,11 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
                         Bucket=source_s3_bucket, Key=key, IfNoneMatch=previous_etag
                     )
                     if file_obj["ResponseMetadata"]["HTTPStatusCode"] != 304:
-                        # latest_harvested[key] = file_obj["ETag"]
+                        latest_harvested[key] = file_obj["ETag"]  # re-enable this before merging
                         file_data = file_obj["Body"].read().decode("utf-8")
 
-                        if key.endswith("/access-policy.json"):  # don't need to send this one in a pulsar message - it's not STAC-compliant
-                            block_store_key = f"{workspace_name}-access_policy.json"
-                            block_store_access_policies, catalogues_access_policies, workflows_access_policies = create_access_policies(file_data)
-                            upload_file_s3(
-                                json.dumps(block_store_access_policies), data_access_control_s3_bucket, block_store_key, s3_client
-                            )
-                            print(block_store_access_policies, data_access_control_s3_bucket, block_store_key)
+                        if key.endswith("/access-policy.json"):  # don't send this one in the pulsar message - it's not STAC-compliant
+                            generate_access_policies(file_data, workspace_name, s3_client)
                         else:
                             harvested_data[key] = file_data
                     else:
@@ -190,7 +253,7 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
             "deleted_keys": deleted_keys,
             "workspace": workspace_name,
         }
-        # file_harvester_messager.consume(msg)
+        file_harvester_messager.consume(msg)
 
         logging.info(f"Message sent: {msg}")
         logging.info("Complete")
