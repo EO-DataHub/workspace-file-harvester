@@ -36,6 +36,13 @@ setup_logging(verbosity=2)
 
 minimum_message_entries = int(os.environ.get("MINIMUM_MESSAGE_ENTRIES", 100))
 
+pulsar_client = get_pulsar_client()
+catalogue_producer = pulsar_client.create_producer(
+    topic=os.environ.get("PULSAR_TOPIC", "harvested"),
+    producer_name=f"workspace_file_harvester/catalogues_{uuid.uuid1().hex}",
+    chunking_enabled=True,
+)
+
 
 def generate_store_policies(data: json, map: dict) -> dict:
     """Generates policies for a give block/object store"""
@@ -150,14 +157,7 @@ def generate_access_policies(file_data, workspace_name, s3_client):
             s3_client,
         )
 
-    pulsar_client = get_pulsar_client()
-    producer = pulsar_client.create_producer(
-        topic=os.environ.get("PULSAR_TOPIC", "harvested"),
-        producer_name=f"workspace_file_harvester/{workspace_name}_workspace_{uuid.uuid1().hex}",
-        chunking_enabled=True,
-    )
-
-    producer.send(
+    catalogue_producer.send(
         (
             json.dumps(
                 {
@@ -173,8 +173,6 @@ def generate_access_policies(file_data, workspace_name, s3_client):
             )
         ).encode("utf-8")
     )
-
-    pulsar_client.close()
 
 
 def get_file_s3(bucket: str, key: str, s3_client: boto3.client) -> tuple:
@@ -237,7 +235,6 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
         logging.info(f"Previously harvested URLs: {previously_harvested}")
 
         count = 0
-        logging.error(f"Scanning {source_s3_bucket}...")
         for details in s3_client.list_objects(
             Bucket=source_s3_bucket,
             Prefix=f"{workspace_name}/" f'{os.environ.get("EODH_CONFIG_DIR", "eodh-config")}/',
