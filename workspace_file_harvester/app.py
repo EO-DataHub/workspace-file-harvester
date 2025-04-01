@@ -68,7 +68,7 @@ def generate_catalogue_policy(data: dict, workspace_name: str) -> dict:
     for path, access in data.items():
         path = path.lstrip("/")
         long_path = (
-            f"/catalogs/user/catalogs/{workspace_name}/catalogs/processing-results/catalogs/{path}"
+            f"catalogs/user/catalogs/{workspace_name}/catalogs/processing-results/catalogs/{path}"
         )
         policies.append(
             {"path": long_path, "access": {"public": access["access"] == "public"}, "acl": []}
