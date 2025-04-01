@@ -115,7 +115,7 @@ def create_access_policies(raw_data: str, workspace_name: str) -> tuple:
     raw_block_store_data = {key: value for key, value in data.items() if "block-store" in key}
     raw_object_store_data = {key: value for key, value in data.items() if "object-store" in key}
     raw_catalogues_data = data.get("catalogue", {})
-    raw_workflows_data = data.get("workflow", {})
+    raw_workflows_data = data.get("workflows", {})
 
     formatted_block_object_store_data = generate_block_object_store_policy(
         block_data=raw_block_store_data, object_data=raw_object_store_data
