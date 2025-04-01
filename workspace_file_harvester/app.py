@@ -32,7 +32,7 @@ object_store_names = {"object-store": f"workspaces-eodhp{env_tag}"}
 block_store_names = {"block-store": "workspaces"}
 
 
-setup_logging(verbosity=2)
+setup_logging(verbosity=3)
 
 minimum_message_entries = int(os.environ.get("MINIMUM_MESSAGE_ENTRIES", 100))
 
@@ -177,7 +177,6 @@ def generate_access_policies(file_data, workspace_name, s3_client):
         ).encode("utf-8")
     )
     logging.error("Pulsar message sent")
-
 
 
 def get_file_s3(bucket: str, key: str, s3_client: boto3.client) -> tuple:
