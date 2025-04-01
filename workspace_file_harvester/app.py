@@ -141,14 +141,14 @@ def generate_access_policies(file_data, workspace_name, s3_client):
         block_object_store_key,
         s3_client,
     )
-    logging.error(f"Uploaded {block_object_store_key}")
+    logging.error(f"Uploaded {block_object_store_key} to {block_object_store_data_access_control_s3_bucket}")
     upload_file_s3(
         json.dumps(catalogue_access_policies),
         catalogue_data_access_control_s3_bucket,
         catalogue_key,
         s3_client,
     )
-    logging.error(f"Uploaded {catalogue_key}")
+    logging.error(f"Uploaded {catalogue_key} to {catalogue_data_access_control_s3_bucket}")
 
     for workflow_policy in workflow_access_policies:
         workflow_key = f"deployed/{workspace_name}/{workflow_policy['name']}.access_policy.json"
@@ -158,7 +158,7 @@ def generate_access_policies(file_data, workspace_name, s3_client):
             workflow_key,
             s3_client,
         )
-        logging.error(f"Uploaded {workflow_key}")
+        logging.error(f"Uploaded {workflow_key} to {workflow_access_control_s3_bucket}")
 
     catalogue_producer.send(
         (
