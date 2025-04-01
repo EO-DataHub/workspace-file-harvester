@@ -141,7 +141,9 @@ def generate_access_policies(file_data, workspace_name, s3_client):
         block_object_store_key,
         s3_client,
     )
-    logging.error(f"Uploaded {block_object_store_key} to {block_object_store_data_access_control_s3_bucket}")
+    logging.error(
+        f"Uploaded {block_object_store_key} to {block_object_store_data_access_control_s3_bucket}"
+    )
     upload_file_s3(
         json.dumps(catalogue_access_policies),
         catalogue_data_access_control_s3_bucket,
@@ -172,6 +174,8 @@ def generate_access_policies(file_data, workspace_name, s3_client):
                     "source": "",
                     "target": "",
                     "added_keys": [catalogue_key],
+                    "updated_keys": [],
+                    "deleted_keys": []
                 }
             )
         ).encode("utf-8")
