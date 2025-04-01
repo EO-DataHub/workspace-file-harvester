@@ -28,7 +28,7 @@ workflow_access_control_s3_bucket = os.environ.get("WORKFLOW_DATA_ACCESS_CONTROL
 env_name = os.environ.get("ENV_NAME")
 env_tag = f"-{env_name}" if env_name else ""
 
-object_store_names = {"object-store": f"workspaces-eodhp{env_tag}"}
+object_store_names = {"object-store": f"workspaces{env_tag}"}
 block_store_names = {"block-store": "workspaces"}
 
 
