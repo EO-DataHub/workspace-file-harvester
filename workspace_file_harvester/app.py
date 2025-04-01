@@ -130,6 +130,7 @@ def generate_access_policies(file_data, workspace_name, s3_client):
     logging.error(f"Access policies found for {workspace_name}")
     block_object_store_key = f"{workspace_name}-access_policy.json"
     catalogue_key = f"{workspace_name}/{workspace_name}-meta_access_policy.json"
+    catalogue_key_harvested = f"harvested/{workspace_name}/{workspace_name}-meta_access_policy.json"
 
     block_store_access_policies, catalogue_access_policies, workflow_access_policies = (
         create_access_policies(file_data, workspace_name)
@@ -148,6 +149,13 @@ def generate_access_policies(file_data, workspace_name, s3_client):
         json.dumps(catalogue_access_policies),
         catalogue_data_access_control_s3_bucket,
         catalogue_key,
+        s3_client,
+    )
+    logging.error(f"Uploaded {catalogue_key} to {catalogue_data_access_control_s3_bucket}")
+    upload_file_s3(
+        json.dumps(catalogue_access_policies),
+        catalogue_data_access_control_s3_bucket,
+        catalogue_key_harvested,
         s3_client,
     )
     logging.error(f"Uploaded {catalogue_key} to {catalogue_data_access_control_s3_bucket}")
@@ -173,9 +181,9 @@ def generate_access_policies(file_data, workspace_name, s3_client):
                     "bucket_name": catalogue_data_access_control_s3_bucket,
                     "source": "",
                     "target": "",
-                    "added_keys": [catalogue_key],
+                    "added_keys": [catalogue_key_harvested],
                     "updated_keys": [],
-                    "deleted_keys": []
+                    "deleted_keys": [],
                 }
             )
         ).encode("utf-8")
