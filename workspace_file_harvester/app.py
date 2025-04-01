@@ -127,7 +127,7 @@ def create_access_policies(raw_data: str, workspace_name: str) -> tuple:
 
 
 def generate_access_policies(file_data, workspace_name, s3_client):
-    logging.error(f"Access policies found for {workspace_name}")
+    logging.info(f"Access policies found for {workspace_name}")
     block_object_store_key = f"{workspace_name}-access_policy.json"
     catalogue_key = f"{workspace_name}/{workspace_name}-meta_access_policy.json"
     catalogue_key_harvested = f"harvested/{workspace_name}/{workspace_name}-meta_access_policy.json"
@@ -142,7 +142,7 @@ def generate_access_policies(file_data, workspace_name, s3_client):
         block_object_store_key,
         s3_client,
     )
-    logging.error(
+    logging.info(
         f"Uploaded {block_object_store_key} to {block_object_store_data_access_control_s3_bucket}"
     )
     upload_file_s3(
@@ -151,14 +151,14 @@ def generate_access_policies(file_data, workspace_name, s3_client):
         catalogue_key,
         s3_client,
     )
-    logging.error(f"Uploaded {catalogue_key} to {catalogue_data_access_control_s3_bucket}")
+    logging.info(f"Uploaded {catalogue_key} to {catalogue_data_access_control_s3_bucket}")
     upload_file_s3(
         json.dumps(catalogue_access_policies),
         catalogue_data_access_control_s3_bucket,
         catalogue_key_harvested,
         s3_client,
     )
-    logging.error(f"Uploaded {catalogue_key} to {catalogue_data_access_control_s3_bucket}")
+    logging.info(f"Uploaded {catalogue_key} to {catalogue_data_access_control_s3_bucket}")
 
     for workflow_policy in workflow_access_policies:
         workflow_key = f"deployed/{workspace_name}/{workflow_policy['name']}.access_policy.json"
@@ -168,7 +168,7 @@ def generate_access_policies(file_data, workspace_name, s3_client):
             workflow_key,
             s3_client,
         )
-        logging.error(f"Uploaded {workflow_key} to {workflow_access_control_s3_bucket}")
+        logging.info(f"Uploaded {workflow_key} to {workflow_access_control_s3_bucket}")
 
     catalogue_producer.send(
         (
@@ -188,7 +188,7 @@ def generate_access_policies(file_data, workspace_name, s3_client):
             )
         ).encode("utf-8")
     )
-    logging.error("Pulsar message sent")
+    logging.info("Pulsar message sent")
 
 
 def get_file_s3(bucket: str, key: str, s3_client: boto3.client) -> tuple:
@@ -215,7 +215,7 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
         harvested_data = {}
         latest_harvested = {}
 
-        logging.error(f"Harvesting from {workspace_name} {source_s3_bucket}")
+        logging.info(f"Harvesting from {workspace_name} {source_s3_bucket}")
 
         pulsar_client = get_pulsar_client()
         producer = pulsar_client.create_producer(
@@ -248,7 +248,7 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
                 content={"message": f"Wait {time_until_next_attempt} seconds before trying again"},
                 status_code=429,
             )
-        logging.error(f"Previously harvested URLs: {previously_harvested}")
+        logging.info(f"Previously harvested URLs: {previously_harvested}")
 
         count = 0
         for details in s3_client.list_objects(
@@ -257,7 +257,7 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
         ).get("Contents", []):
             key = details["Key"]
             if not key.endswith("/"):
-                logging.error(f"{key} found")
+                logging.info(f"{key} found")
 
                 previous_etag = previously_harvested.pop(key, "")
                 try:
@@ -287,7 +287,7 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
                     )
                     msg = {"harvested_data": harvested_data, "deleted_keys": []}
                     file_harvester_messager.consume(msg)
-                    logging.error(f"Message sent: {msg}")
+                    logging.info(f"Message sent: {msg}")
                     count = 0
                     harvested_data = {}
 
@@ -301,15 +301,15 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
         }
         file_harvester_messager.consume(msg)
 
-        logging.error(f"Message sent: {msg}")
-        logging.error("Complete")
+        logging.info(f"Message sent: {msg}")
+        logging.info("Complete")
     except Exception:
         logging.error(traceback.format_exc())
 
 
 @app.post("/{workspace_name}/harvest")
 async def root(workspace_name: str):
-    logging.error(f"Starting harvest for {workspace_name}")
+    logging.info(f"Starting harvest for {workspace_name}")
     asyncio.create_task(harvest(workspace_name, source_s3_bucket, target_s3_bucket))
-    logging.error("Complete")
+    logging.info("Complete")
     return JSONResponse(content={}, status_code=200)
