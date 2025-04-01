@@ -237,14 +237,14 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
         logging.info(f"Previously harvested URLs: {previously_harvested}")
 
         count = 0
-        logging.info(f"Scanning {source_s3_bucket}...")
+        logging.error(f"Scanning {source_s3_bucket}...")
         for details in s3_client.list_objects(
             Bucket=source_s3_bucket,
             Prefix=f"{workspace_name}/" f'{os.environ.get("EODH_CONFIG_DIR", "eodh-config")}/',
         ).get("Contents", []):
             key = details["Key"]
             if not key.endswith("/"):
-                logging.info(f"{key} found")
+                logging.error(f"{key} found")
 
                 previous_etag = previously_harvested.pop(key, "")
                 try:
