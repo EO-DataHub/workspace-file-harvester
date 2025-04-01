@@ -108,7 +108,7 @@ def create_access_policies(raw_data: str, workspace_name: str) -> tuple:
     raw_block_store_data = {key: value for key, value in data.items() if "block-store" in key}
     raw_object_store_data = {key: value for key, value in data.items() if "object-store" in key}
     raw_catalogues_data = data.get("catalogue", {})
-    raw_workflows_data = data.get("workflows", {})
+    raw_workflows_data = data.get("workflow", {})
 
     formatted_block_object_store_data = generate_block_object_store_policy(
         block_data=raw_block_store_data, object_data=raw_object_store_data
@@ -237,6 +237,7 @@ async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: 
         logging.info(f"Previously harvested URLs: {previously_harvested}")
 
         count = 0
+        logging.info(f"Scanning {source_s3_bucket}...")
         for details in s3_client.list_objects(
             Bucket=source_s3_bucket,
             Prefix=f"{workspace_name}/" f'{os.environ.get("EODH_CONFIG_DIR", "eodh-config")}/',
