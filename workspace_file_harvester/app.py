@@ -105,7 +105,7 @@ def generate_workflow_policy(data: dict) -> list:
 
 
 def create_access_policies(raw_data: str, workspace_name: str) -> tuple:
-    """Generates"""
+    """Generates access policies for block/object store data, user catalogues and workflows"""
     try:
         data = json.loads(raw_data)
     except json.decoder.JSONDecodeError as e:
@@ -158,7 +158,7 @@ def generate_access_policies(file_data, workspace_name, s3_client):
         catalogue_key_harvested,
         s3_client,
     )
-    logging.info(f"Uploaded {catalogue_key} to {catalogue_data_access_control_s3_bucket}")
+    logging.info(f"Uploaded {catalogue_key_harvested} to {catalogue_data_access_control_s3_bucket}")
 
     for workflow_policy in workflow_access_policies:
         workflow_key = f"deployed/{workspace_name}/{workflow_policy['name']}.access_policy.json"
