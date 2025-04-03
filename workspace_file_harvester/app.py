@@ -14,22 +14,22 @@ from eodhp_utils.aws.s3 import upload_file_s3
 from eodhp_utils.runner import get_boto3_session, get_pulsar_client, setup_logging
 from fastapi import FastAPI
 from messager import FileHarvesterMessager
-from opentelemetry import trace
-from opentelemetry.baggage import set_baggage
-from opentelemetry.context import attach, detach
-from opentelemetry.processor.baggage import ALLOW_ALL_BAGGAGE_KEYS, BaggageSpanProcessor
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+# from opentelemetry import trace
+# from opentelemetry.baggage import set_baggage
+# from opentelemetry.context import attach, detach
+# from opentelemetry.processor.baggage import ALLOW_ALL_BAGGAGE_KEYS, BaggageSpanProcessor
+# from opentelemetry.sdk.trace import TracerProvider
+# from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
 from starlette.responses import JSONResponse
-
-provider = TracerProvider()
-provider.add_span_processor(BaggageSpanProcessor(ALLOW_ALL_BAGGAGE_KEYS))
-provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
-trace.set_tracer_provider(provider)
-
-
-# Acquire a tracer
-tracer = trace.get_tracer("workflow-file-harvester.tracer")
+#
+# provider = TracerProvider()
+# provider.add_span_processor(BaggageSpanProcessor(ALLOW_ALL_BAGGAGE_KEYS))
+# provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
+# trace.set_tracer_provider(provider)
+#
+#
+# # Acquire a tracer
+# tracer = trace.get_tracer("workflow-file-harvester.tracer")
 
 setup_logging(verbosity=2)
 
@@ -190,8 +190,10 @@ async def harvest_logs(workspace_name: str, age: int = SECONDS_IN_HOUR):
     es = Elasticsearch(
         os.environ["ELASTICSEARCH_URL"],
         verify_certs=False,
-        basic_auth=(os.environ["USER_NAME"], os.environ["PASSWORD"]),
+        api_key=os.environ["API_KEY"]
+        # basic_auth=(os.environ["USER_NAME"], os.environ["PASSWORD"]),
     )
+    logging.info(f"Checking logs for {workspace_name}")
 
     query = {
         "bool": {
@@ -235,7 +237,7 @@ async def harvest_logs(workspace_name: str, age: int = SECONDS_IN_HOUR):
                     source = message["_source"]
                     m = {
                         "datetime": source["@timestamp"],
-                        "level": source["json"]["levelname"],
+                        # "level": source["json"].get("levelname", "UNKNOWN"),
                         "message": source["json"]["message"],
                     }
                     relevant_messages.append(m)
@@ -243,5 +245,6 @@ async def harvest_logs(workspace_name: str, age: int = SECONDS_IN_HOUR):
                 pass
 
     count = len(relevant_messages)
+    logging.info(f"Checked logs for {workspace_name}: {count} found")
     message = {"count": count, "messages": relevant_messages}
     return JSONResponse(content=message, status_code=200)
