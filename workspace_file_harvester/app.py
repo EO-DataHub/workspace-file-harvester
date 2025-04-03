@@ -108,9 +108,13 @@ async def get_workspace_contents(workspace_name: str, source_s3_bucket: str, tar
                 - file_age
             )
             if time_until_next_attempt.total_seconds() >= 0:
-                logging.error(f"Harvest not completed - previous harvest was {file_age} seconds ago")
+                logging.error(
+                    f"Harvest not completed - previous harvest was {file_age} seconds ago"
+                )
                 return JSONResponse(
-                    content={"message": f"Wait {time_until_next_attempt} seconds before trying again"},
+                    content={
+                        "message": f"Wait {time_until_next_attempt} seconds before trying again"
+                    },
                     status_code=429,
                 )
             logging.info(f"Previously harvested URLs: {previously_harvested}")
@@ -142,7 +146,10 @@ async def get_workspace_contents(workspace_name: str, source_s3_bucket: str, tar
 
                     if count > max_entries:
                         upload_file_s3(
-                            json.dumps(latest_harvested), target_s3_bucket, metadata_s3_key, s3_client
+                            json.dumps(latest_harvested),
+                            target_s3_bucket,
+                            metadata_s3_key,
+                            s3_client,
                         )
                         msg = {"harvested_data": harvested_data, "deleted_keys": []}
                         file_harvester_messager.consume(msg)
@@ -152,7 +159,9 @@ async def get_workspace_contents(workspace_name: str, source_s3_bucket: str, tar
 
             deleted_keys = list(previously_harvested.keys())
 
-            upload_file_s3(json.dumps(latest_harvested), target_s3_bucket, metadata_s3_key, s3_client)
+            upload_file_s3(
+                json.dumps(latest_harvested), target_s3_bucket, metadata_s3_key, s3_client
+            )
             msg = {
                 "harvested_data": harvested_data,
                 "deleted_keys": deleted_keys,
@@ -172,7 +181,9 @@ async def harvest(workspace_name: str):
 
     with tracer.start_as_current_span(workspace_name) as span:
         logging.info(f"Starting file harvest for {workspace_name}")
-        asyncio.create_task(get_workspace_contents(workspace_name, source_s3_bucket, target_s3_bucket))
+        asyncio.create_task(
+            get_workspace_contents(workspace_name, source_s3_bucket, target_s3_bucket)
+        )
         logging.info("Complete")
 
         detach(token_workspace)
@@ -180,36 +191,26 @@ async def harvest(workspace_name: str):
 
 
 @app.post("/{workspace_name}/harvest_logs")
-async def harvest_logs(workspace_name: str, age: int=SECONDS_IN_HOUR):
+async def harvest_logs(workspace_name: str, age: int = SECONDS_IN_HOUR):
 
     es = Elasticsearch(
         os.environ["ELASTICSEARCH_URL"],
         verify_certs=False,
-        basic_auth=(os.environ["USER_NAME"], os.environ["PASSWORD"])
+        basic_auth=(os.environ["USER_NAME"], os.environ["PASSWORD"]),
     )
 
     query = {
         "bool": {
             "must": [
                 {
-                    "match": {
-                        "json.workspace": workspace_name
-                    },
+                    "match": {"json.workspace": workspace_name},
                 },
-                {
-                    "range": {
-                        "@timestamp": {
-                            "gte": f"now-{age}s",
-                            "lt": "now"
-                        }
-                    }
-                }
+                {"range": {"@timestamp": {"gte": f"now-{age}s", "lt": "now"}}},
             ]
         }
     }
 
     sort = [{"@timestamp": {"order": "desc"}}]
-
 
     relevant_messages = []
     # keeping this for non-concurrency testing purposes
@@ -228,16 +229,21 @@ async def harvest_logs(workspace_name: str, age: int=SECONDS_IN_HOUR):
     with concurrent.futures.ThreadPoolExecutor() as e:
         fut = []
         for index in es.indices.get(index=".ds-logs-generic-default-*"):
-            fut.append(e.submit(es.search, index=index, scroll="1d", query=query, size=100, sort=sort))
+            fut.append(
+                e.submit(es.search, index=index, scroll="1d", query=query, size=100, sort=sort)
+            )
 
         for r in concurrent.futures.as_completed(fut):
             try:
                 data = r.result()
-                messages = data['hits']['hits']
+                messages = data["hits"]["hits"]
                 for message in messages:
                     source = message["_source"]
-                    m = {"datetime": source["@timestamp"], "level": source['json']['levelname'],
-                         "message": source["json"]["message"]}
+                    m = {
+                        "datetime": source["@timestamp"],
+                        "level": source["json"]["levelname"],
+                        "message": source["json"]["message"],
+                    }
                     relevant_messages.append(m)
             except json.decoder.JSONDecodeError as e:
                 pass
