@@ -66,10 +66,13 @@ classifiers = [
 dependencies = [
     "boto3",
     "botocore",
-    "eodhp-utils @ git+https://github.com/UKEODHP/eodhp-utils@v0.1.4",
+    "eodhp-utils @ git+https://github.com/UKEODHP/eodhp-utils@v0.1.5",
     "pystac-client",
     "pystac",
-    "fastapi[standard]"
+    "fastapi[standard]",
+    "opentelemetry-distro",
+    "opentelemetry-processor-baggage",
+    "elasticsearch"
 ]
 
 # List additional groups of dependencies here (e.g. development
