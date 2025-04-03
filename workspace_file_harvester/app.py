@@ -4,29 +4,23 @@ import datetime
 import json
 import logging
 import os
-import re
 import traceback
 import uuid
-from json import JSONDecodeError
-
-from elasticsearch import Elasticsearch
 
 import boto3
 from botocore.exceptions import ClientError
+from elasticsearch import Elasticsearch
 from eodhp_utils.aws.s3 import upload_file_s3
 from eodhp_utils.runner import get_boto3_session, get_pulsar_client, setup_logging
 from fastapi import FastAPI
 from messager import FileHarvesterMessager
 from opentelemetry import trace
-from opentelemetry.context import attach, detach, get_current
-from opentelemetry.baggage import set_baggage, get_all
+from opentelemetry.baggage import set_baggage
+from opentelemetry.context import attach, detach
+from opentelemetry.processor.baggage import ALLOW_ALL_BAGGAGE_KEYS, BaggageSpanProcessor
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.processor.baggage import BaggageSpanProcessor, ALLOW_ALL_BAGGAGE_KEYS
-from opentelemetry.sdk.trace.export import (
-    ConsoleSpanExporter,
-    BatchSpanProcessor,
-)
-
+from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+from starlette.responses import JSONResponse
 
 provider = TracerProvider()
 provider.add_span_processor(BaggageSpanProcessor(ALLOW_ALL_BAGGAGE_KEYS))
@@ -37,7 +31,7 @@ trace.set_tracer_provider(provider)
 # Acquire a tracer
 tracer = trace.get_tracer("workflow-file-harvester.tracer")
 
-from starlette.responses import JSONResponse
+setup_logging(verbosity=2)
 
 root_path = os.environ.get("ROOT_PATH", "/")
 logging.basicConfig(level=logging.DEBUG)
@@ -179,7 +173,7 @@ async def get_workspace_contents(workspace_name: str, source_s3_bucket: str, tar
 async def harvest(workspace_name: str):
     token_workspace = attach(set_baggage("workspace", workspace_name))
 
-    with tracer.start_as_current_span(workspace_name) as span:
+    with tracer.start_as_current_span(workspace_name):
         logging.info(f"Starting file harvest for {workspace_name}")
         asyncio.create_task(
             get_workspace_contents(workspace_name, source_s3_bucket, target_s3_bucket)
