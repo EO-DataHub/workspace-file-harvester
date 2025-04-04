@@ -15,11 +15,11 @@ attrs==25.3.0
     # via
     #   jsonschema
     #   referencing
-boto3==1.37.26
+boto3==1.37.27
     # via
     #   eodhp-utils
     #   workspace-file-harvester (pyproject.toml)
-botocore==1.37.26
+botocore==1.37.27
     # via
     #   boto3
     #   eodhp-utils
@@ -51,8 +51,10 @@ elasticsearch==8.17.2
     # via workspace-file-harvester (pyproject.toml)
 email-validator==2.2.0
     # via fastapi
-eodhp-utils @ git+https://github.com/UKEODHP/eodhp-utils@v0.1.5
+eodhp-utils @ git+https://github.com/UKEODHP/eodhp-utils@v0.1.7
     # via workspace-file-harvester (pyproject.toml)
+faker==37.1.0
+    # via eodhp-utils
 fastapi[standard]==0.115.12
     # via workspace-file-harvester (pyproject.toml)
 fastapi-cli[standard]==0.0.7
@@ -95,21 +97,28 @@ mdurl==0.1.2
     # via markdown-it-py
 opentelemetry-api==1.31.1
     # via
-    #   opentelemetry-distro
+    #   eodhp-utils
     #   opentelemetry-instrumentation
+    #   opentelemetry-instrumentation-logging
     #   opentelemetry-processor-baggage
     #   opentelemetry-sdk
     #   opentelemetry-semantic-conventions
-opentelemetry-distro==0.52b1
-    # via workspace-file-harvester (pyproject.toml)
+    #   workspace-file-harvester (pyproject.toml)
 opentelemetry-instrumentation==0.52b1
-    # via opentelemetry-distro
+    # via opentelemetry-instrumentation-logging
+opentelemetry-instrumentation-logging==0.52b1
+    # via
+    #   eodhp-utils
+    #   workspace-file-harvester (pyproject.toml)
 opentelemetry-processor-baggage==0.52b1
-    # via workspace-file-harvester (pyproject.toml)
+    # via
+    #   eodhp-utils
+    #   workspace-file-harvester (pyproject.toml)
 opentelemetry-sdk==1.31.1
     # via
-    #   opentelemetry-distro
+    #   eodhp-utils
     #   opentelemetry-processor-baggage
+    #   workspace-file-harvester (pyproject.toml)
 opentelemetry-semantic-conventions==0.52b1
     # via
     #   opentelemetry-instrumentation
@@ -118,9 +127,9 @@ packaging==24.2
     # via opentelemetry-instrumentation
 pulsar-client==3.6.1
     # via eodhp-utils
-pydantic==2.11.1
+pydantic==2.11.2
     # via fastapi
-pydantic-core==2.33.0
+pydantic-core==2.33.1
     # via pydantic
 pygments==2.19.1
     # via rich
@@ -137,6 +146,8 @@ python-dateutil==2.9.0.post0
     #   pystac-client
 python-dotenv==1.1.0
     # via uvicorn
+python-json-logger==3.3.0
+    # via eodhp-utils
 python-multipart==0.0.20
     # via fastapi
 pyyaml==6.0.2
@@ -169,7 +180,7 @@ starlette==0.46.1
     # via fastapi
 typer==0.15.2
     # via fastapi-cli
-typing-extensions==4.13.0
+typing-extensions==4.13.1
     # via
     #   anyio
     #   fastapi
@@ -182,6 +193,8 @@ typing-extensions==4.13.0
     #   typing-inspection
 typing-inspection==0.4.0
     # via pydantic
+tzdata==2025.2
+    # via faker
 urllib3==2.3.0
     # via
     #   botocore

@@ -17,21 +17,13 @@ from messager import FileHarvesterMessager
 from opentelemetry import trace
 from opentelemetry.baggage import set_baggage
 from opentelemetry.context import attach, detach
-from opentelemetry.processor.baggage import ALLOW_ALL_BAGGAGE_KEYS, BaggageSpanProcessor
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
 from starlette.responses import JSONResponse
-
-provider = TracerProvider()
-provider.add_span_processor(BaggageSpanProcessor(ALLOW_ALL_BAGGAGE_KEYS))
-provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
-trace.set_tracer_provider(provider)
 
 
 # Acquire a tracer
 tracer = trace.get_tracer("workflow-file-harvester.tracer")
 
-setup_logging(verbosity=2)
+setup_logging(verbosity=2, enable_otel_logging=True)
 
 root_path = os.environ.get("ROOT_PATH", "/")
 logging.basicConfig(level=logging.DEBUG)
@@ -191,7 +183,6 @@ async def harvest_logs(workspace_name: str, age: int = SECONDS_IN_HOUR):
         os.environ["ELASTICSEARCH_URL"],
         verify_certs=False,
         api_key=os.environ["API_KEY"]
-        # basic_auth=(os.environ["USER_NAME"], os.environ["PASSWORD"]),
     )
     logging.info(f"Checking logs for {workspace_name}")
 
