@@ -210,6 +210,7 @@ def generate_access_policies(file_data, workspace_name, s3_client):
     )
     logging.info("Pulsar message sent")
 
+
 pulsar_client = get_pulsar_client()
 catalogue_producer = pulsar_client.create_producer(
     topic=os.environ.get("PULSAR_TOPIC", "harvested"),
@@ -300,7 +301,9 @@ async def get_workspace_contents(workspace_name: str, source_s3_bucket: str, tar
                             Bucket=source_s3_bucket, Key=key, IfNoneMatch=previous_etag
                         )
                         if file_obj["ResponseMetadata"]["HTTPStatusCode"] != 304:
-                            latest_harvested[key] = file_obj["ETag"]  # re-enable this before merging
+                            latest_harvested[key] = file_obj[
+                                "ETag"
+                            ]  # re-enable this before merging
                             file_data = file_obj["Body"].read().decode("utf-8")
 
                             if key.endswith("/access-policy.json"):
