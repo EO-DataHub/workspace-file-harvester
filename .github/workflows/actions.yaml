@@ -52,7 +52,7 @@ jobs:
 
   publish:
     name: Build and push Docker image
-    needs: [get-tag-name]
+    needs: [ get-tag-name ]
     uses: EO-DataHub/github-actions/.github/workflows/ecr-publish.yaml@main
     with:
       image_name: ${{ vars.IMAGE_NAME }}
