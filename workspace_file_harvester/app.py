@@ -19,7 +19,6 @@ from opentelemetry.baggage import set_baggage
 from opentelemetry.context import attach, detach
 from starlette.responses import JSONResponse
 
-
 # Acquire a tracer
 tracer = trace.get_tracer("workflow-file-harvester.tracer")
 
@@ -34,8 +33,10 @@ source_s3_bucket = os.environ.get("SOURCE_S3_BUCKET")
 target_s3_bucket = os.environ.get("TARGET_S3_BUCKET")
 
 minimum_message_entries = int(os.environ.get("MINIMUM_MESSAGE_ENTRIES", 100))
+max_log_messages = int(os.environ.get("MAX_LOG_MESSAGES", 100))
 
-SECONDS_IN_HOUR = 60
+SECONDS_IN_HOUR = 60 * 60
+SECONDS_IN_DAY = 24 * SECONDS_IN_HOUR
 
 
 def get_file_s3(bucket: str, key: str, s3_client: boto3.client) -> tuple:
@@ -177,12 +178,10 @@ async def harvest(workspace_name: str):
 
 
 @app.post("/{workspace_name}/harvest_logs")
-async def harvest_logs(workspace_name: str, age: int = SECONDS_IN_HOUR):
+async def harvest_logs(workspace_name: str, age: int = SECONDS_IN_DAY):
 
     es = Elasticsearch(
-        os.environ["ELASTICSEARCH_URL"],
-        verify_certs=False,
-        api_key=os.environ["API_KEY"]
+        os.environ["ELASTICSEARCH_URL"], verify_certs=False, api_key=os.environ["API_KEY"]
     )
     logging.info(f"Checking logs for {workspace_name}")
 
@@ -209,7 +208,7 @@ async def harvest_logs(workspace_name: str, age: int = SECONDS_IN_HOUR):
     #     messages = results['hits']['hits']
     #     for message in messages:
     #         source = message["_source"]
-    #         m = {"datetime": source["@timestamp"], "level": source['json']['levelname'],
+    #         m = {"datetime": source["@timestamp"],
     #              "message": source["json"]["message"]}
     #         relevant_messages.append(m)
 
@@ -217,7 +216,7 @@ async def harvest_logs(workspace_name: str, age: int = SECONDS_IN_HOUR):
         fut = []
         for index in es.indices.get(index=".ds-logs-generic-default-*"):
             fut.append(
-                e.submit(es.search, index=index, scroll="1d", query=query, size=100, sort=sort)
+                e.submit(es.search, index=index, query=query, size=max_log_messages, sort=sort)
             )
 
         for r in concurrent.futures.as_completed(fut):
