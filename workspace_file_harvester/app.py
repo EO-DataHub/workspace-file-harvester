@@ -1,4 +1,5 @@
 import asyncio
+import concurrent
 import datetime
 import json
 import logging
@@ -8,13 +9,23 @@ import uuid
 
 import boto3
 from botocore.exceptions import ClientError
+from elasticsearch import Elasticsearch
 from eodhp_utils.aws.s3 import upload_file_s3
 from eodhp_utils.runner import get_boto3_session, get_pulsar_client, setup_logging
 from fastapi import FastAPI
 from messager import FileHarvesterMessager
+from opentelemetry import trace
+from opentelemetry.baggage import set_baggage
+from opentelemetry.context import attach, detach
 from starlette.responses import JSONResponse
 
+# Acquire a tracer
+tracer = trace.get_tracer("workflow-file-harvester.tracer")
+
+setup_logging(verbosity=2, enable_otel_logging=True)
+
 root_path = os.environ.get("ROOT_PATH", "/")
+logging.basicConfig(level=logging.DEBUG)
 logging.info("Starting FastAPI")
 app = FastAPI(root_path=root_path)
 
@@ -28,13 +39,22 @@ workflow_access_control_s3_bucket = os.environ.get("WORKFLOW_DATA_ACCESS_CONTROL
 env_name = os.environ.get("ENV_NAME")
 env_tag = f"-{env_name}" if env_name else ""
 
+minimum_message_entries = int(os.environ.get("MINIMUM_MESSAGE_ENTRIES", 100))
+max_log_messages = int(os.environ.get("MAX_LOG_MESSAGES", 100))
+
+SECONDS_IN_HOUR = 60 * 60
+SECONDS_IN_DAY = 24 * SECONDS_IN_HOUR
+
+block_object_store_data_access_control_s3_bucket = os.environ.get(
+    "BLOCK_OBJECT_STORE_DATA_ACCESS_CONTROL_S3_BUCKET"
+)
+catalogue_data_access_control_s3_bucket = os.environ.get("CATALOGUE_DATA_ACCESS_CONTROL_S3_BUCKET")
+workflow_access_control_s3_bucket = os.environ.get("WORKFLOW_DATA_ACCESS_CONTROL_S3_BUCKET")
+env_name = os.environ.get("ENV_NAME")
+env_tag = f"-{env_name}" if env_name else ""
+
 object_store_names = {"object-store": f"workspaces{env_tag}"}
 block_store_names = {"block-store": "workspaces"}
-
-
-setup_logging(verbosity=3)
-
-minimum_message_entries = int(os.environ.get("MINIMUM_MESSAGE_ENTRIES", 100))
 
 pulsar_client = get_pulsar_client()
 catalogue_producer = pulsar_client.create_producer(
@@ -191,6 +211,14 @@ def generate_access_policies(file_data, workspace_name, s3_client):
     logging.info("Pulsar message sent")
 
 
+pulsar_client = get_pulsar_client()
+catalogue_producer = pulsar_client.create_producer(
+    topic=os.environ.get("PULSAR_TOPIC", "harvested"),
+    producer_name=f"workspace_file_harvester/catalogues_{uuid.uuid1().hex}",
+    chunking_enabled=True,
+)
+
+
 def get_file_s3(bucket: str, key: str, s3_client: boto3.client) -> tuple:
     """Retrieve data from an S3 bucket"""
     try:
@@ -205,111 +233,196 @@ def get_file_s3(bucket: str, key: str, s3_client: boto3.client) -> tuple:
         return "{}", datetime.datetime(1970, 1, 1)
 
 
-async def harvest(workspace_name: str, source_s3_bucket: str, target_s3_bucket: str):
+async def get_workspace_contents(workspace_name: str, source_s3_bucket: str, target_s3_bucket: str):
     """Run file harvesting for user's workspace"""
     s3_client = get_boto3_session().client("s3")
 
-    try:
-        max_entries = int(os.environ.get("MAX_ENTRIES", "1000"))
+    # Set OpenTelemetry Baggage (persists across logs and child spans)
+    set_baggage("workspace", workspace_name)
 
-        harvested_data = {}
-        latest_harvested = {}
+    with tracer.start_as_current_span("stac_harvester.run"):
+        try:
+            max_entries = int(os.environ.get("MAX_ENTRIES", "1000"))
 
-        logging.info(f"Harvesting from {workspace_name} {source_s3_bucket}")
+            harvested_data = {}
+            latest_harvested = {}
 
-        pulsar_client = get_pulsar_client()
-        producer = pulsar_client.create_producer(
-            topic=os.environ.get("PULSAR_TOPIC"),
-            producer_name=f"workspace_file_harvester/{workspace_name}_{uuid.uuid1().hex}",
-            chunking_enabled=True,
-        )
+            logging.info(f"Harvesting from {workspace_name} {source_s3_bucket}")
 
-        file_harvester_messager = FileHarvesterMessager(
-            workspace_name=workspace_name,
-            s3_client=s3_client,
-            output_bucket=target_s3_bucket,
-            cat_output_prefix=f"file-harvester/{workspace_name}-eodhp-config/catalogs/user/catalogs/{workspace_name}/",
-            producer=producer,
-        )
-
-        metadata_s3_key = f"harvested-metadata/file-harvester/{workspace_name}"
-        harvested_raw_data, last_modified = get_file_s3(
-            target_s3_bucket, metadata_s3_key, s3_client
-        )
-        previously_harvested = json.loads(harvested_raw_data)
-        file_age = datetime.datetime.now() - last_modified
-        time_until_next_attempt = (
-            datetime.timedelta(seconds=int(os.environ.get("RUNTIME_FREQUENCY_LIMIT", "10")))
-            - file_age
-        )
-        if time_until_next_attempt.total_seconds() >= 0:
-            logging.error(f"Harvest not completed - previous harvest was {file_age} seconds ago")
-            return JSONResponse(
-                content={"message": f"Wait {time_until_next_attempt} seconds before trying again"},
-                status_code=429,
+            pulsar_client = get_pulsar_client()
+            producer = pulsar_client.create_producer(
+                topic=os.environ.get("PULSAR_TOPIC"),
+                producer_name=f"workspace_file_harvester/{workspace_name}_{uuid.uuid1().hex}",
+                chunking_enabled=True,
             )
-        logging.info(f"Previously harvested URLs: {previously_harvested}")
 
-        count = 0
-        for details in s3_client.list_objects(
-            Bucket=source_s3_bucket,
-            Prefix=f"{workspace_name}/" f'{os.environ.get("EODH_CONFIG_DIR", "eodh-config")}/',
-        ).get("Contents", []):
-            key = details["Key"]
-            if not key.endswith("/"):
-                logging.info(f"{key} found")
+            file_harvester_messager = FileHarvesterMessager(
+                workspace_name=workspace_name,
+                s3_client=s3_client,
+                output_bucket=target_s3_bucket,
+                cat_output_prefix=f"file-harvester/{workspace_name}-eodhp-config/catalogs/user/catalogs/{workspace_name}/",
+                producer=producer,
+            )
 
-                previous_etag = previously_harvested.pop(key, "")
-                try:
-                    file_obj = s3_client.get_object(
-                        Bucket=source_s3_bucket, Key=key, IfNoneMatch=previous_etag
-                    )
-                    if file_obj["ResponseMetadata"]["HTTPStatusCode"] != 304:
-                        latest_harvested[key] = file_obj["ETag"]  # re-enable this before merging
-                        file_data = file_obj["Body"].read().decode("utf-8")
+            metadata_s3_key = f"harvested-metadata/file-harvester/{workspace_name}"
+            harvested_raw_data, last_modified = get_file_s3(
+                target_s3_bucket, metadata_s3_key, s3_client
+            )
+            previously_harvested = json.loads(harvested_raw_data)
+            file_age = datetime.datetime.now() - last_modified
+            time_until_next_attempt = (
+                datetime.timedelta(seconds=int(os.environ.get("RUNTIME_FREQUENCY_LIMIT", "10")))
+                - file_age
+            )
+            if time_until_next_attempt.total_seconds() >= 0:
+                logging.error(
+                    f"Harvest not completed - previous harvest was {file_age} seconds ago"
+                )
+                return JSONResponse(
+                    content={
+                        "message": f"Wait {time_until_next_attempt} seconds before trying again"
+                    },
+                    status_code=429,
+                )
+            logging.info(f"Previously harvested URLs: {previously_harvested}")
 
-                        if key.endswith("/access-policy.json"):
-                            # don't send this one in the pulsar message - it's not STAC-compliant
-                            generate_access_policies(file_data, workspace_name, s3_client)
+            count = 0
+            for details in s3_client.list_objects(
+                Bucket=source_s3_bucket,
+                Prefix=f"{workspace_name}/" f'{os.environ.get("EODH_CONFIG_DIR", "eodh-config")}/',
+            ).get("Contents", []):
+                key = details["Key"]
+                if not key.endswith("/"):
+                    logging.info(f"{key} found")
+
+                    previous_etag = previously_harvested.pop(key, "")
+                    try:
+                        file_obj = s3_client.get_object(
+                            Bucket=source_s3_bucket, Key=key, IfNoneMatch=previous_etag
+                        )
+                        if file_obj["ResponseMetadata"]["HTTPStatusCode"] != 304:
+                            latest_harvested[key] = file_obj[
+                                "ETag"
+                            ]  # re-enable this before merging
+                            file_data = file_obj["Body"].read().decode("utf-8")
+
+                            if key.endswith("/access-policy.json"):
+                                # don't send this one in the pulsar message - it's not STAC-compliant
+                                generate_access_policies(file_data, workspace_name, s3_client)
+                            else:
+                                harvested_data[key] = file_data
                         else:
-                            harvested_data[key] = file_data
-                    else:
-                        latest_harvested[key] = previous_etag
-                except ClientError as e:
-                    if e.response["ResponseMetadata"]["HTTPStatusCode"] == 304:
-                        latest_harvested[key] = previous_etag
-                    else:
-                        raise Exception from e
+                            latest_harvested[key] = previous_etag
+                    except ClientError as e:
+                        if e.response["ResponseMetadata"]["HTTPStatusCode"] == 304:
+                            latest_harvested[key] = previous_etag
+                        else:
+                            raise Exception from e
 
-                if count > max_entries:
-                    upload_file_s3(
-                        json.dumps(latest_harvested), target_s3_bucket, metadata_s3_key, s3_client
-                    )
-                    msg = {"harvested_data": harvested_data, "deleted_keys": []}
-                    file_harvester_messager.consume(msg)
-                    logging.info(f"Message sent: {msg}")
-                    count = 0
-                    harvested_data = {}
+                    if count > max_entries:
+                        upload_file_s3(
+                            json.dumps(latest_harvested),
+                            target_s3_bucket,
+                            metadata_s3_key,
+                            s3_client,
+                        )
+                        msg = {"harvested_data": harvested_data, "deleted_keys": []}
+                        file_harvester_messager.consume(msg)
+                        logging.info(f"Message sent: {msg}")
+                        count = 0
+                        harvested_data = {}
 
-        deleted_keys = list(previously_harvested.keys())
+            deleted_keys = list(previously_harvested.keys())
 
-        upload_file_s3(json.dumps(latest_harvested), target_s3_bucket, metadata_s3_key, s3_client)
-        msg = {
-            "harvested_data": harvested_data,
-            "deleted_keys": deleted_keys,
-            "workspace": workspace_name,
-        }
-        file_harvester_messager.consume(msg)
+            upload_file_s3(
+                json.dumps(latest_harvested), target_s3_bucket, metadata_s3_key, s3_client
+            )
+            msg = {
+                "harvested_data": harvested_data,
+                "deleted_keys": deleted_keys,
+                "workspace": workspace_name,
+            }
+            file_harvester_messager.consume(msg)
 
-        logging.info(f"Message sent: {msg}")
-        logging.info("Complete")
-    except Exception:
-        logging.error(traceback.format_exc())
+            logging.info(f"Message sent: {msg}")
+            logging.info("Complete")
+        except Exception:
+            logging.error(traceback.format_exc())
 
 
 @app.post("/{workspace_name}/harvest")
-async def root(workspace_name: str):
-    logging.info(f"Starting harvest for {workspace_name}")
-    asyncio.create_task(harvest(workspace_name, source_s3_bucket, target_s3_bucket))
-    logging.info("Complete")
-    return JSONResponse(content={}, status_code=200)
+async def harvest(workspace_name: str):
+    token_workspace = attach(set_baggage("workspace", workspace_name))
+
+    with tracer.start_as_current_span(workspace_name):
+        logging.info(f"Starting file harvest for {workspace_name}")
+        asyncio.create_task(
+            get_workspace_contents(workspace_name, source_s3_bucket, target_s3_bucket)
+        )
+        logging.info("Complete")
+
+        detach(token_workspace)
+        return JSONResponse(content={}, status_code=200)
+
+
+@app.post("/{workspace_name}/harvest_logs")
+async def harvest_logs(workspace_name: str, age: int = SECONDS_IN_DAY):
+
+    es = Elasticsearch(
+        os.environ["ELASTICSEARCH_URL"], verify_certs=False, api_key=os.environ["API_KEY"]
+    )
+    logging.info(f"Checking logs for {workspace_name}")
+
+    query = {
+        "bool": {
+            "must": [
+                {
+                    "match": {"json.workspace": workspace_name},
+                },
+                {"range": {"@timestamp": {"gte": f"now-{age}s", "lt": "now"}}},
+            ]
+        }
+    }
+
+    sort = [{"@timestamp": {"order": "desc"}}]
+
+    relevant_messages = []
+    # keeping this for non-concurrency testing purposes
+    # for index in es.indices.get(index=".ds-logs-generic-default-*"):
+    #     logging.info(f"Found: {index}")
+    #
+    #     results = es.search(index=index, scroll="1d", query=query, size=100, sort=sort)
+    #
+    #     messages = results['hits']['hits']
+    #     for message in messages:
+    #         source = message["_source"]
+    #         m = {"datetime": source["@timestamp"],
+    #              "message": source["json"]["message"]}
+    #         relevant_messages.append(m)
+
+    with concurrent.futures.ThreadPoolExecutor() as e:
+        fut = []
+        for index in es.indices.get(index=".ds-logs-generic-default-*"):
+            fut.append(
+                e.submit(es.search, index=index, query=query, size=max_log_messages, sort=sort)
+            )
+
+        for r in concurrent.futures.as_completed(fut):
+            try:
+                data = r.result()
+                messages = data["hits"]["hits"]
+                for message in messages:
+                    source = message["_source"]
+                    m = {
+                        "datetime": source["@timestamp"],
+                        # "level": source["json"].get("levelname", "UNKNOWN"),
+                        "message": source["json"]["message"],
+                    }
+                    relevant_messages.append(m)
+            except json.decoder.JSONDecodeError as e:
+                pass
+
+    count = len(relevant_messages)
+    logging.info(f"Checked logs for {workspace_name}: {count} found")
+    message = {"count": count, "messages": relevant_messages}
+    return JSONResponse(content=message, status_code=200)
