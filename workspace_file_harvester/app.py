@@ -211,14 +211,6 @@ def generate_access_policies(file_data, workspace_name, s3_client):
     logging.info("Pulsar message sent")
 
 
-pulsar_client = get_pulsar_client()
-catalogue_producer = pulsar_client.create_producer(
-    topic=os.environ.get("PULSAR_TOPIC", "harvested"),
-    producer_name=f"workspace_file_harvester/catalogues_{uuid.uuid1().hex}",
-    chunking_enabled=True,
-)
-
-
 def get_file_s3(bucket: str, key: str, s3_client: boto3.client) -> tuple:
     """Retrieve data from an S3 bucket"""
     try:
@@ -250,19 +242,6 @@ async def get_workspace_contents(workspace_name: str, source_s3_bucket: str, tar
             logging.info(f"Harvesting from {workspace_name} {source_s3_bucket}")
 
             pulsar_client = get_pulsar_client()
-            producer = pulsar_client.create_producer(
-                topic=os.environ.get("PULSAR_TOPIC"),
-                producer_name=f"workspace_file_harvester/{workspace_name}_{uuid.uuid1().hex}",
-                chunking_enabled=True,
-            )
-
-            file_harvester_messager = FileHarvesterMessager(
-                workspace_name=workspace_name,
-                s3_client=s3_client,
-                output_bucket=target_s3_bucket,
-                cat_output_prefix=f"file-harvester/{workspace_name}-eodhp-config/catalogs/user/catalogs/{workspace_name}/",
-                producer=producer,
-            )
 
             metadata_s3_key = f"harvested-metadata/file-harvester/{workspace_name}"
             harvested_raw_data, last_modified = get_file_s3(
@@ -286,11 +265,36 @@ async def get_workspace_contents(workspace_name: str, source_s3_bucket: str, tar
                 )
             logging.info(f"Previously harvested URLs: {previously_harvested}")
 
-            count = 0
-            for details in s3_client.list_objects(
+            all_details = s3_client.list_objects(
                 Bucket=source_s3_bucket,
                 Prefix=f"{workspace_name}/" f'{os.environ.get("EODH_CONFIG_DIR", "eodh-config")}/',
-            ).get("Contents", []):
+            ).get("Contents", [])
+
+            if len(all_details) > int(os.environ.get("BULK_QUEUE_MINIMUM", 100)):
+                topic = os.environ.get("PULSAR_TOPIC_BULK")
+                tag = "bulk"
+            else:
+                topic = os.environ.get("PULSAR_TOPIC")
+                tag = "standard"
+
+            logging.info(f"{len(all_details)} files found - using {tag} queue...")
+
+            producer = pulsar_client.create_producer(
+                topic=topic,
+                producer_name=f"workspace_file_harvester/{workspace_name}_{uuid.uuid1().hex}",
+                chunking_enabled=True,
+            )
+
+            file_harvester_messager = FileHarvesterMessager(
+                workspace_name=workspace_name,
+                s3_client=s3_client,
+                output_bucket=target_s3_bucket,
+                cat_output_prefix=f"file-harvester/{workspace_name}-eodhp-config/catalogs/user/catalogs/{workspace_name}/",
+                producer=producer,
+            )
+
+            count = 0
+            for details in all_details:
                 key = details["Key"]
                 if not key.endswith("/"):
                     logging.info(f"{key} found")
@@ -415,7 +419,6 @@ async def harvest_logs(workspace_name: str, age: int = SECONDS_IN_DAY):
                     source = message["_source"]
                     m = {
                         "datetime": source["@timestamp"],
-                        # "level": source["json"].get("levelname", "UNKNOWN"),
                         "message": source["json"]["message"],
                     }
                     relevant_messages.append(m)
