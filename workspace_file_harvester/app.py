@@ -432,5 +432,5 @@ async def harvest_logs(workspace_name: str, age: int = SECONDS_IN_DAY):
 
     count = len(relevant_messages)
     logging.info(f"Checked logs for {workspace_name}: {count} found")
-    message = {"count": count, "messages": sorted(relevant_messages, key=lambda m: m.datetime)}
+    message = {"count": count, "messages": sorted(relevant_messages, key=lambda m: m["datetime"])}
     return JSONResponse(content=message, status_code=200)
