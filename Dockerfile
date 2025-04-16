@@ -13,7 +13,8 @@ ADD LICENSE requirements.txt ./
 ADD workspace_file_harvester ./workspace_file_harvester/
 ADD pyproject.toml ./
 RUN --mount=type=cache,target=/root/.cache/pip pip3 install -r requirements.txt .
+RUN opentelemetry-bootstrap -a install
 
-# Change as required, eg
+# Change as required, eg opentelemetry-instrument --traces_exporter console --logs_exporter console
 CMD ["fastapi", "run", "workspace_file_harvester/app.py"]
 
