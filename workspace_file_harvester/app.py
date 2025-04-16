@@ -358,15 +358,19 @@ async def get_workspace_contents(workspace_name: str, source_s3_bucket: str, tar
 async def harvest(workspace_name: str):
     token_workspace = attach(set_baggage("workspace", workspace_name))
 
-    with tracer.start_as_current_span(workspace_name):
-        logging.info(f"Starting file harvest for {workspace_name}")
-        asyncio.create_task(
-            get_workspace_contents(workspace_name, source_s3_bucket, target_s3_bucket)
-        )
-        logging.info("Complete")
+    try:
+        with tracer.start_as_current_span(workspace_name):
+            logging.info(f"Starting file harvest for {workspace_name}")
+            asyncio.create_task(
+                get_workspace_contents(workspace_name, source_s3_bucket, target_s3_bucket)
+            )
+            logging.info("Complete")
 
+    finally:
+        logging.info("Detach token")
         detach(token_workspace)
-        return JSONResponse(content={}, status_code=200)
+
+    return JSONResponse(content={}, status_code=200)
 
 
 @app.post("/{workspace_name}/harvest_logs")
