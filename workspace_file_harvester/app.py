@@ -56,12 +56,12 @@ env_tag = f"-{env_name}" if env_name else ""
 object_store_names = {"object-store": f"workspaces{env_tag}"}
 block_store_names = {"block-store": "workspaces"}
 
-# pulsar_client = get_pulsar_client()
-# catalogue_producer = pulsar_client.create_producer(
-#     topic=os.environ.get("PULSAR_TOPIC", "harvested"),
-#     producer_name=f"workspace_file_harvester/catalogues_{uuid.uuid1().hex}",
-#     chunking_enabled=True,
-# )
+pulsar_client = get_pulsar_client()
+catalogue_producer = pulsar_client.create_producer(
+    topic=os.environ.get("PULSAR_TOPIC", "harvested"),
+    producer_name=f"workspace_file_harvester/catalogues_{uuid.uuid1().hex}",
+    chunking_enabled=True,
+)
 
 
 def generate_store_policies(data: json, map: dict) -> dict:
