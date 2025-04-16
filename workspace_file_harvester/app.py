@@ -56,12 +56,12 @@ env_tag = f"-{env_name}" if env_name else ""
 object_store_names = {"object-store": f"workspaces{env_tag}"}
 block_store_names = {"block-store": "workspaces"}
 
-pulsar_client = get_pulsar_client()
-catalogue_producer = pulsar_client.create_producer(
-    topic=os.environ.get("PULSAR_TOPIC", "harvested"),
-    producer_name=f"workspace_file_harvester/catalogues_{uuid.uuid1().hex}",
-    chunking_enabled=True,
-)
+# pulsar_client = get_pulsar_client()
+# catalogue_producer = pulsar_client.create_producer(
+#     topic=os.environ.get("PULSAR_TOPIC", "harvested"),
+#     producer_name=f"workspace_file_harvester/catalogues_{uuid.uuid1().hex}",
+#     chunking_enabled=True,
+# )
 
 
 def generate_store_policies(data: json, map: dict) -> dict:
@@ -391,41 +391,43 @@ async def harvest_logs(workspace_name: str, age: int = SECONDS_IN_DAY):
     sort = [{"@timestamp": {"order": "desc"}}]
 
     relevant_messages = []
-    # keeping this for non-concurrency testing purposes
-    # for index in es.indices.get(index=".ds-logs-generic-default-*"):
-    #     logging.info(f"Found: {index}")
-    #
-    #     results = es.search(index=index, scroll="1d", query=query, size=100, sort=sort)
-    #
-    #     messages = results['hits']['hits']
-    #     for message in messages:
-    #         source = message["_source"]
-    #         m = {"datetime": source["@timestamp"],
-    #              "message": source["json"]["message"]}
-    #         relevant_messages.append(m)
-
-    with concurrent.futures.ThreadPoolExecutor() as e:
-        fut = []
+    if os.environ.get("DEBUG"):
+        # Runs code non-currently
         for index in es.indices.get(index=".ds-logs-generic-default-*"):
-            fut.append(
-                e.submit(es.search, index=index, query=query, size=max_log_messages, sort=sort)
-            )
+            logging.info(f"Found: {index}")
 
-        for r in concurrent.futures.as_completed(fut):
-            try:
-                data = r.result()
-                messages = data["hits"]["hits"]
-                for message in messages:
-                    source = message["_source"]
-                    m = {
-                        "datetime": source["@timestamp"],
-                        "message": source["json"]["message"],
-                    }
-                    relevant_messages.append(m)
-            except json.decoder.JSONDecodeError as e:
-                pass
+            results = es.search(index=index, scroll="1d", query=query, size=100, sort=sort)
+
+            messages = results['hits']['hits']
+            for message in messages:
+                source = message["_source"]
+                m = {"datetime": source["@timestamp"],
+                     "message": source["json"]["message"]}
+                relevant_messages.append(m)
+
+    else:
+        with concurrent.futures.ThreadPoolExecutor() as e:
+            fut = []
+            for index in es.indices.get(index=".ds-logs-generic-default-*"):
+                fut.append(
+                    e.submit(es.search, index=index, query=query, size=max_log_messages, sort=sort)
+                )
+
+            for r in concurrent.futures.as_completed(fut):
+                try:
+                    data = r.result()
+                    messages = data["hits"]["hits"]
+                    for message in messages:
+                        source = message["_source"]
+                        m = {
+                            "datetime": source["@timestamp"],
+                            "message": source["json"]["message"],
+                        }
+                        relevant_messages.append(m)
+                except json.decoder.JSONDecodeError as e:
+                    pass
 
     count = len(relevant_messages)
     logging.info(f"Checked logs for {workspace_name}: {count} found")
-    message = {"count": count, "messages": relevant_messages}
+    message = {"count": count, "messages": sorted(relevant_messages, key=lambda m: m.datetime)}
     return JSONResponse(content=message, status_code=200)
