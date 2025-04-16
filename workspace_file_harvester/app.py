@@ -402,11 +402,10 @@ async def harvest_logs(workspace_name: str, age: int = SECONDS_IN_DAY):
 
             results = es.search(index=index, scroll="1d", query=query, size=100, sort=sort)
 
-            messages = results['hits']['hits']
+            messages = results["hits"]["hits"]
             for message in messages:
                 source = message["_source"]
-                m = {"datetime": source["@timestamp"],
-                     "message": source["json"]["message"]}
+                m = {"datetime": source["@timestamp"], "message": source["json"]["message"]}
                 relevant_messages.append(m)
 
     else:
