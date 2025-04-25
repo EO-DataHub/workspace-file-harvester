@@ -405,7 +405,11 @@ async def harvest_logs(workspace_name: str, age: int = SECONDS_IN_DAY):
             messages = results["hits"]["hits"]
             for message in messages:
                 source = message["_source"]
-                m = {"datetime": source["@timestamp"], "message": source["json"]["message"]}
+                m = {
+                    "datetime": source["@timestamp"],
+                    "message": source["json"]["message"],
+                    "level": source["json"].get("level"),
+                }
                 relevant_messages.append(m)
 
     else:
@@ -425,6 +429,7 @@ async def harvest_logs(workspace_name: str, age: int = SECONDS_IN_DAY):
                         m = {
                             "datetime": source["@timestamp"],
                             "message": source["json"]["message"],
+                            "level": source["json"].get("level"),
                         }
                         relevant_messages.append(m)
                 except json.decoder.JSONDecodeError as e:
