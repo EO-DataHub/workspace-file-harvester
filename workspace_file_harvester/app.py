@@ -242,18 +242,21 @@ def remove_items_from_deleted_collections(
 
                 for deleted_key in deleted_keys:
                     deleted_key = deleted_key.split("/")[-1].rstrip(".json")
-                    catalogue, collection = deleted_key.split("_$_")
-                    links = file_data.get("links", [])
-                    for link in links:
-                        if link.get("rel") == "parent":
-                            parent_path = link.get("href")
-                            if parent_path == f"catalogs/{catalogue}/collections/{collection}":
-                                logging.info(
-                                    f"Parent collection {collection} in {catalogue} deleted - deleting {key}"
-                                )
-                                delete_file_s3(bucket, key, s3_client)
-                                additional_deleted_keys.append(key)
-                            break
+                    try:
+                        catalogue, collection = deleted_key.split("_$_")
+                        links = file_data.get("links", [])
+                        for link in links:
+                            if link.get("rel") == "parent":
+                                parent_path = link.get("href")
+                                if parent_path == f"catalogs/{catalogue}/collections/{collection}":
+                                    logging.info(
+                                        f"Parent collection {collection} in {catalogue} deleted - deleting {key}"
+                                    )
+                                    delete_file_s3(bucket, key, s3_client)
+                                    additional_deleted_keys.append(key)
+                                break
+                    except ValueError:  # not a collection
+                        pass
 
             except ClientError as e:
                 if not e.response["ResponseMetadata"]["HTTPStatusCode"] == 304:
