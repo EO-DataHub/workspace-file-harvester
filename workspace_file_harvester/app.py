@@ -250,7 +250,8 @@ def remove_items_from_deleted_collections(
                                 parent_path = link.get("href")
                                 if parent_path == f"catalogs/{catalogue}/collections/{collection}":
                                     logging.info(
-                                        f"Parent collection {collection} in {catalogue} deleted - deleting {key}"
+                                        f"Parent collection {collection} in {catalogue} deleted - "
+                                        f"deleting {key}"
                                     )
                                     delete_file_s3(bucket, key, s3_client)
                                     additional_deleted_keys.append(key)
