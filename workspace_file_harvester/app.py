@@ -377,11 +377,13 @@ async def get_workspace_contents(workspace_name: str, source_s3_bucket: str, tar
 
             deleted_keys = list(previously_harvested.keys())
             logging.info(f"Deleted keys found: {deleted_keys}")
-            deleted_keys.extend(
-                remove_items_from_deleted_collections(
-                    deleted_keys, all_details, s3_client, source_s3_bucket
-                )
+            additional_deleted_keys = remove_items_from_deleted_collections(
+                deleted_keys, all_details, s3_client, source_s3_bucket
             )
+
+            for key in additional_deleted_keys:
+                latest_harvested.pop(key)
+                deleted_keys.append(key)
 
             upload_file_s3(
                 json.dumps(latest_harvested), target_s3_bucket, metadata_s3_key, s3_client
