@@ -10,7 +10,7 @@ import uuid
 import boto3
 from botocore.exceptions import ClientError
 from elasticsearch import Elasticsearch
-from eodhp_utils.aws.s3 import upload_file_s3
+from eodhp_utils.aws.s3 import delete_file_s3, upload_file_s3
 from eodhp_utils.runner import get_boto3_session, get_pulsar_client, setup_logging
 from fastapi import FastAPI
 from messager import FileHarvesterMessager
@@ -225,6 +225,47 @@ def get_file_s3(bucket: str, key: str, s3_client: boto3.client) -> tuple:
         return "{}", datetime.datetime(1970, 1, 1)
 
 
+def remove_items_from_deleted_collections(
+    deleted_keys: list, all_details: list, s3_client, bucket: str
+):
+    """Remove items if collection is deleted"""
+    additional_deleted_keys = []
+    for details in all_details:
+        key = details["Key"]
+        if not key.endswith("/"):
+            logging.info(f"{key} found")
+
+            try:
+                file_obj = s3_client.get_object(Bucket=source_s3_bucket, Key=key)
+
+                file_data = json.loads(file_obj["Body"].read().decode("utf-8"))
+
+                for deleted_key in deleted_keys:
+                    deleted_key = deleted_key.split("/")[-1].rstrip(".json")
+                    try:
+                        catalogue, collection = deleted_key.split("_$_")
+                        links = file_data.get("links", [])
+                        for link in links:
+                            if link.get("rel") == "parent":
+                                parent_path = link.get("href")
+                                if parent_path == f"catalogs/{catalogue}/collections/{collection}":
+                                    logging.info(
+                                        f"Parent collection {collection} in {catalogue} deleted - "
+                                        f"deleting {key}"
+                                    )
+                                    delete_file_s3(bucket, key, s3_client)
+                                    additional_deleted_keys.append(key)
+                                break
+                    except ValueError:  # not a collection
+                        pass
+
+            except ClientError as e:
+                if not e.response["ResponseMetadata"]["HTTPStatusCode"] == 304:
+                    raise Exception from e
+
+    return additional_deleted_keys
+
+
 async def get_workspace_contents(workspace_name: str, source_s3_bucket: str, target_s3_bucket: str):
     """Run file harvesting for user's workspace"""
     s3_client = get_boto3_session().client("s3")
@@ -305,9 +346,7 @@ async def get_workspace_contents(workspace_name: str, source_s3_bucket: str, tar
                             Bucket=source_s3_bucket, Key=key, IfNoneMatch=previous_etag
                         )
                         if file_obj["ResponseMetadata"]["HTTPStatusCode"] != 304:
-                            latest_harvested[key] = file_obj[
-                                "ETag"
-                            ]  # re-enable this before merging
+                            latest_harvested[key] = file_obj["ETag"]
                             file_data = file_obj["Body"].read().decode("utf-8")
 
                             if key.endswith("/access-policy.json"):
@@ -337,6 +376,14 @@ async def get_workspace_contents(workspace_name: str, source_s3_bucket: str, tar
                         harvested_data = {}
 
             deleted_keys = list(previously_harvested.keys())
+            logging.info(f"Deleted keys found: {deleted_keys}")
+            additional_deleted_keys = remove_items_from_deleted_collections(
+                deleted_keys, all_details, s3_client, source_s3_bucket
+            )
+
+            for key in additional_deleted_keys:
+                latest_harvested.pop(key)
+                deleted_keys.append(key)
 
             upload_file_s3(
                 json.dumps(latest_harvested), target_s3_bucket, metadata_s3_key, s3_client
@@ -350,6 +397,7 @@ async def get_workspace_contents(workspace_name: str, source_s3_bucket: str, tar
 
             logging.info(f"Message sent: {msg}")
             logging.info("Complete")
+
         except Exception:
             logging.error(traceback.format_exc())
 
