@@ -57,12 +57,12 @@ env_tag = f"-{env_name}" if env_name else ""
 object_store_names = {"object-store": f"workspaces{env_tag}"}
 block_store_names = {"block-store": "workspaces"}
 
-# pulsar_client = get_pulsar_client()
-# catalogue_producer = pulsar_client.create_producer(
-#     topic=os.environ.get("PULSAR_TOPIC", "harvested"),
-#     producer_name=f"workspace_file_harvester/catalogues_{uuid.uuid1().hex}",
-#     chunking_enabled=True,
-# )
+pulsar_client = get_pulsar_client()
+catalogue_producer = pulsar_client.create_producer(
+    topic=os.environ.get("PULSAR_TOPIC", "harvested"),
+    producer_name=f"workspace_file_harvester/catalogues_{uuid.uuid1().hex}",
+    chunking_enabled=True,
+)
 
 
 def generate_store_policies(data: json, map: dict) -> dict:
@@ -191,32 +191,29 @@ def generate_access_policies(file_data, workspace_name, s3_client):
         )
         logging.info(f"Uploaded {workflow_key} to {workflow_access_control_s3_bucket}")
 
-    # catalogue_producer.send(
-    #     (
-    #         json.dumps(
-    #             {
-    #                 "id": f"harvester/workspace_file_harvester/{workspace_name}/workspaces",
-    #                 "workspace": workspace_name,
-    #                 "repository": "",
-    #                 "branch": "",
-    #                 "bucket_name": catalogue_data_access_control_s3_bucket,
-    #                 "source": "",
-    #                 "target": "",
-    #                 "added_keys": [catalogue_key_harvested],
-    #                 "updated_keys": [],
-    #                 "deleted_keys": [],
-    #             }
-    #         )
-    #     ).encode("utf-8")
-    # )
+    catalogue_producer.send(
+        (
+            json.dumps(
+                {
+                    "id": f"harvester/workspace_file_harvester/{workspace_name}/workspaces",
+                    "workspace": workspace_name,
+                    "repository": "",
+                    "branch": "",
+                    "bucket_name": catalogue_data_access_control_s3_bucket,
+                    "source": "",
+                    "target": "",
+                    "added_keys": [catalogue_key_harvested],
+                    "updated_keys": [],
+                    "deleted_keys": [],
+                }
+            )
+        ).encode("utf-8")
+    )
     logging.info("Pulsar message sent")
 
 
 def get_file_s3(bucket: str, key: str, s3_client: boto3.client) -> tuple:
     """Retrieve data from an S3 bucket"""
-    print('AAAAAAAAAAAAAAAAAAAAAAAAAAAA')
-    print(bucket)
-    print(key)
     try:
         file_obj = s3_client.get_object(Bucket=bucket, Key=key)
         last_modified = datetime.datetime.strptime(
@@ -324,18 +321,18 @@ async def get_workspace_contents(workspace_name: str, source_s3_bucket: str, tar
 
             logging.info(f"{len(all_details)} files found - using {tag} queue...")
 
-            # producer = pulsar_client.create_producer(
-            #     topic=topic,
-            #     producer_name=f"workspace_file_harvester/{workspace_name}_{uuid.uuid1().hex}",
-            #     chunking_enabled=True,
-            # )
+            producer = pulsar_client.create_producer(
+                topic=topic,
+                producer_name=f"workspace_file_harvester/{workspace_name}_{uuid.uuid1().hex}",
+                chunking_enabled=True,
+            )
 
             file_harvester_messager = FileHarvesterMessager(
                 workspace_name=workspace_name,
                 s3_client=s3_client,
                 output_bucket=target_s3_bucket,
                 cat_output_prefix=f"file-harvester/{workspace_name}-eodhp-config/catalogs/user/catalogs/{workspace_name}/",
-                producer=2#producer,
+                producer=producer,
             )
 
             count = 0
