@@ -283,7 +283,7 @@ async def get_workspace_contents(workspace_name: str, source_s3_bucket: str, tar
 
             logging.info(f"Harvesting from {workspace_name} {source_s3_bucket}")
 
-            # pulsar_client = get_pulsar_client()
+            pulsar_client = get_pulsar_client()
 
             metadata_s3_key = f"harvested-metadata/file-harvester/{workspace_name}"
             harvested_raw_data, last_modified = get_file_s3(
