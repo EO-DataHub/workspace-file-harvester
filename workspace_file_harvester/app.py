@@ -6,6 +6,7 @@ import logging
 import os
 import traceback
 import uuid
+from json import JSONDecodeError
 
 import boto3
 from botocore.exceptions import ClientError
@@ -347,13 +348,17 @@ async def get_workspace_contents(workspace_name: str, source_s3_bucket: str, tar
                         )
                         if file_obj["ResponseMetadata"]["HTTPStatusCode"] != 304:
                             latest_harvested[key] = file_obj["ETag"]
-                            file_data = file_obj["Body"].read().decode("utf-8")
 
-                            if key.endswith("/access-policy.json"):
-                                # don't send this one in the pulsar message - it's not STAC-compliant
-                                generate_access_policies(file_data, workspace_name, s3_client)
-                            else:
-                                harvested_data[key] = file_data
+                            try:
+                                file_data = file_obj["Body"].read().decode("utf-8")
+
+                                if key.endswith("/access-policy.json"):
+                                    # don't send this one in the pulsar message - it's not STAC-compliant
+                                    generate_access_policies(file_data, workspace_name, s3_client)
+                                else:
+                                    harvested_data[key] = file_data
+                            except JSONDecodeError:  # ignore non-JSON files
+                                logging.warning(f"{key} is not valid JSON. Passing...")
                         else:
                             latest_harvested[key] = previous_etag
                     except ClientError as e:
