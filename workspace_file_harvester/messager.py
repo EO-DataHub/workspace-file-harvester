@@ -32,9 +32,7 @@ class FileHarvesterMessager(Messager[str]):
 
             if entry_type:
                 if parent_link:
-                    parent_path = parent_link["href"].rstrip("/")
-                    if parent_path.endswith(".json"):
-                        parent_path = parent_path[:-5]
+                    parent_path = parent_link["href"].rstrip("/").removesuffix('.json')
 
                     path = f"{parent_path}/{entry_type_dict[entry_type]}/{data['id']}"
 
