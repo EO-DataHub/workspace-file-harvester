@@ -264,6 +264,9 @@ def remove_items_from_deleted_collections(
                 if not e.response["ResponseMetadata"]["HTTPStatusCode"] == 304:
                     raise Exception from e
 
+            except JSONDecodeError:  # ignore non-JSON files
+                logging.warning(f"{key} is not valid JSON. Passing...")
+
     return additional_deleted_keys
 
 
