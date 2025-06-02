@@ -32,7 +32,7 @@ class FileHarvesterMessager(Messager[str]):
 
             if entry_type:
                 if parent_link:
-                    parent_path = parent_link["href"].rstrip("/").rstrip(".json")
+                    parent_path = parent_link["href"].rstrip("/").removesuffix(".json")
 
                     path = f"{parent_path}/{entry_type_dict[entry_type]}/{data['id']}"
 
@@ -51,7 +51,7 @@ class FileHarvesterMessager(Messager[str]):
 
             # return action to save file to S3
             # bucket defaults to self.output_bucket
-            logging.error(path)
+            logging.info(path)
             action = Messager.OutputFileAction(
                 file_body=json.dumps(data),
                 cat_path=f"{path}.json",
