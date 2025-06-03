@@ -47,6 +47,28 @@ To prepare running it:
 
 You should also configure your IDE to use black so that code is automatically reformatted on save.
 
+
+### Configuration
+
+The following environment variables are required:
+- `ELASTICSEARCH_URL` - URL for elasticsearch (string)
+- `API_KEY` - elasticsearch API key (string)
+- `ROOT_PATH` - root path for workspaces
+- `SOURCE_S3_BUCKET` - bucket where files are uploaded to
+- `TARGET_S3_BUCKET` - bucket containing files for harvest
+- `BLOCK_OBJECT_STORE_DATA_ACCESS_CONTROL_S3_BUCKET` - bucket containing block and object store access configuration
+- `CATALOGUE_DATA_ACCESS_CONTROL_S3_BUCKET` - bucket containing catalogue access configuration
+- `WORKFLOW_DATA_ACCESS_CONTROL_S3_BUCKET` - bucket containing workflow access configuration
+- `EODH_CONFIG_DIR` - directory containing config information
+- `PULSAR_TOPIC` - topic for pulsar messages
+- `PULSAR_TOPIC_BULK` - topic for bulk pulsar messages
+- `ENV_NAME` - name of environment
+- `MAX_LOG_MESSAGES` - maximum number of log messages to display
+- `MAX_ENTRIES` - maximum number of entries to send per message
+- `RUNTIME_FREQUENCY_LIMIT` - minimum time (seconds) required between reharvests 
+- `DEBUG` - debug mode enabled (bool)
+
+
 ## Building and testing
 
 This component uses `pytest` tests and the `ruff` and `black` linters. `black` will reformat your code in an
