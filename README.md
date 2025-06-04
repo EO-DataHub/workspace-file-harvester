@@ -1,8 +1,19 @@
 # Workspace File Harvester
 
-Collects user-uploaded files from S3. STAC files are passed to the transformer and ingestor for harvesting and access policy files are used to update public access of files, folders and workflows. 
+Collects user-uploaded files from S3. STAC files are passed to the transformer and ingestor for harvesting and access 
+policy files are used to update public access of files, folders and workflows. 
 
-# Development of this component
+It is designed to operate as part of a data pipeline which is triggered by the POST endpoint. Files are collected 
+from an S3 bucket and are sent to a transformer if STAC files, or used to update access permissions if not. After 
+harvesting, it sends messages back to Pulsar to notify downstream services of the new or updated catalogue entries.
+
+
+## Features
+
+- **File harvest** - checks for new files in S3 bucket and sends STAC files into the harvest pipeline
+- **Permission updates** - data in access files is used to update access permissions
+- **Viewing Logs** - ability to view logs relating to the harvest of a particular workspace
+
 
 ## Getting started
 
@@ -48,7 +59,12 @@ To prepare running it:
 You should also configure your IDE to use black so that code is automatically reformatted on save.
 
 
-### Configuration
+## Configuration
+
+The file harvester is configured through environment variables and query parameters
+
+
+### Environment variables
 
 The following environment variables are required:
 - `ELASTICSEARCH_URL` - URL for elasticsearch (string)
@@ -69,18 +85,69 @@ The following environment variables are required:
 - `DEBUG` - debug mode enabled (bool)
 
 
-## Building and testing
+### Query parameters
 
-This component uses `pytest` tests and the `ruff` and `black` linters. `black` will reformat your code in an
-opinionated way.
+An optional `age` query can be added to the `/{workspace_name}/harvest_logs` POST endpoint to set a different age range.
 
-A number of `make` targets are defined:
-* `make test`: run tests continuously
-* `make testonce`: run tests once
-* `make lint`: lint and reformat
-* `make dockerbuild`: build a `latest` Docker image (use `make dockerbuild `VERSION=1.2.3` for a release image)
-* `make dockerpush`: push a `latest` Docker image (again, you can add `VERSION=1.2.3`) - normally this should be done
-  only via the build system and its GitHub actions.
+
+## Pulsar Messages
+
+### Incoming Pulsar Messages (`harvested` topic)
+
+The service listens for messages on the `harvested` topic. Each message is a JSON object with the following structure:
+
+### Outgoing Pulsar Messages (`harvested` topic)
+
+After processing, the service sends a message to the `harvested` topic. 
+
+```json
+{
+  "id": "<unique_id>",
+  "workspace": "<workspace_name>",
+  "bucket_name": "<destination_s3_bucket>",
+  "source": "<source_url_prefix>",
+  "target": "<target_url_prefix>",
+  "updated_keys": ["<list/of/updated/keys>"],
+  "deleted_keys": ["<list/of/deleted/keys>"],
+  "added_keys": ["<list/of/newly/added/keys>"]
+}
+```
+
+- `bucket_name`: S3 bucket where files are stored (may be different from the source).
+- `updated_keys`, `deleted_keys`, `added_keys`: Refer to the deleted, or added files in the output catalogue.
+
+**Note:** The service may also send "empty" catalogue change messages (with no updated, deleted, or added keys) to indicate a successful harvest with no file changes.
+
+
+## Usage
+
+The service is typically run as part of a data pipeline, but you can invoke it directly for testing or development.
+
+Run the file harvester from the command line:
+
+```sh
+fastapi dev app.py
+```
+
+
+## Development
+
+- Code is in `workspace_file_harvester`.
+- Formatting: [Black](https://black.readthedocs.io/), [Ruff](https://docs.astral.sh/ruff/), [isort](https://pycqa.github.io/isort/).
+- Linting: [Pylint](https://pylint.pycqa.org/).
+- Pre-commit checks are installed with `make setup`.
+
+Useful Makefile targets:
+
+- `make setup`: Set up or update the dev environment.
+- `make test`: Run tests continuously.
+- `make testonce`: Run tests once.
+- `make lint`: Run all linters and formatters.
+- `make requirements`: Update requirements files from `pyproject.toml`.
+- `make requirements-update`: Update to the latest allowed versions.
+- `make dockerbuild`: Build a Docker image.
+- `make dockerpush`: Push a Docker image.
+
 
 ## Managing requirements
 
@@ -104,6 +171,26 @@ then install and run `validate-pyproject pyproject.toml` and/or `pip3 install .`
 
 To check for vulnerable dependencies, run `pip-audit`.
 
+
+## Testing
+
+Run all tests with:
+
+```sh
+make testonce
+```
+
+Tests use [pytest](https://docs.pytest.org/), [moto](https://github.com/spulec/moto) for AWS mocking, and [requests-mock](https://requests-mock.readthedocs.io/).
+
+## Troubleshooting
+
+- **Authentication errors:** Ensure your `AWS_ACCESS_KEY` and `AWS_SECRET_ACCESS_KEY` are set correctly and have permission to access the required S3 buckets.
+- **Pulsar connection issues:** Check that `PULSAR_URL` is set to the correct broker address and is reachable from your environment.
+- **S3 upload or download failures:** Verify that `S3_BUCKET` (and any other relevant buckets like `PATCH_BUCKET` or `S3_SPDX_BUCKET`) exist, your credentials have the correct permissions, and the bucket region matches your configuration.
+
+Check the application logs for detailed error messages.
+
+
 ## Releasing
 
 Ensure that `make lint` and `make test` work correctly and produce no further changes to code formatting before
@@ -126,3 +213,5 @@ manually in the following way:
 * Run `make dockerbuild` (for images tagged `latest`) or `make dockerbuild VERSION=1.2.3` for a release tagged `1.2.3`.
   The image will be available locally within Docker after this step.
 * Run `make dockerpush` or `make dockerpush VERSION=1.2.3`. This will send the image to the ECR repository.
+
+
