@@ -87,7 +87,7 @@ The following environment variables are required:
 
 ### Query parameters
 
-An optional `age` query can be added to the `/{workspace_name}/harvest_logs` POST endpoint to set a different age range.
+An optional `age` query can be added to the `/{workspace_name}/harvest_logs` POST endpoint to set a different age range e.g. POST `/{workspace_name}/harvest_logs?age=86400`. For more information, visit the OpenAPI docs.  
 
 
 ## Pulsar Messages
