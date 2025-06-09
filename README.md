@@ -92,9 +92,6 @@ An optional `age` query can be added to the `/{workspace_name}/harvest_logs` POS
 
 ## Pulsar Messages
 
-### Incoming Pulsar Messages (`harvested` topic)
-
-The service listens for messages on the `harvested` topic. Each message is a JSON object with the following structure:
 
 ### Outgoing Pulsar Messages (`harvested` topic)
 
