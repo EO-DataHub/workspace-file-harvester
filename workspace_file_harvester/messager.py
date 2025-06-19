@@ -1,5 +1,6 @@
 import json
 import logging
+from json import JSONDecodeError
 from typing import Sequence
 
 from eodhp_utils.messagers import Messager
@@ -24,39 +25,42 @@ class FileHarvesterMessager(Messager[str]):
 
         for key, value in harvested_data.items():
 
-            data = json.loads(value)
-            links = data.get("links", [])
-            parent_link = next((item for item in links if item["rel"] == "parent"), None)
+            try:
+                data = json.loads(value)
+                links = data.get("links", [])
+                parent_link = next((item for item in links if item["rel"] == "parent"), None)
 
-            entry_type = data.get("type")
+                entry_type = data.get("type")
 
-            if entry_type:
-                if parent_link:
-                    parent_path = parent_link["href"].rstrip("/").removesuffix(".json")
+                if entry_type:
+                    if parent_link:
+                        parent_path = parent_link["href"].rstrip("/").removesuffix(".json")
 
-                    path = f"{parent_path}/{entry_type_dict[entry_type]}/{data['id']}"
+                        path = f"{parent_path}/{entry_type_dict[entry_type]}/{data['id']}"
 
-                elif entry_type == "Feature":
-                    logging.error(
-                        f"STAC item {data['id']} at {key} is missing "
-                        f"parent link required for items"
-                    )
-                    path = None
-                elif entry_type == "Catalog":
-                    path = data["id"]
-                elif entry_type == "Collection":
-                    path = data["id"]
-                else:
-                    logging.error(f"Unrecognised entry type: {entry_type}")
+                    elif entry_type == "Feature":
+                        logging.error(
+                            f"STAC item {data['id']} at {key} is missing "
+                            f"parent link required for items"
+                        )
+                        path = None
+                    elif entry_type == "Catalog":
+                        path = data["id"]
+                    elif entry_type == "Collection":
+                        path = data["id"]
+                    else:
+                        logging.error(f"Unrecognised entry type: {entry_type}")
 
-            # return action to save file to S3
-            # bucket defaults to self.output_bucket
-            logging.info(path)
-            action = Messager.OutputFileAction(
-                file_body=json.dumps(data),
-                cat_path=f"{path}.json",
-            )
-            action_list.append(action)
+                # return action to save file to S3
+                # bucket defaults to self.output_bucket
+                logging.info(path)
+                action = Messager.OutputFileAction(
+                    file_body=json.dumps(data),
+                    cat_path=f"{path}.json",
+                )
+                action_list.append(action)
+            except JSONDecodeError:
+                logging.error(f"Invalid JSON: Unable to parse {key}")
 
         for key in deleted_keys:
             # return action to delete file from S3
