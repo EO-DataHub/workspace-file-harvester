@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.6
+- Fix for invalid JSON
+
 ## 0.1.5
 - Fix for truncated collection names
 
