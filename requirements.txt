@@ -43,7 +43,7 @@ dnspython==2.7.0
     # via email-validator
 elastic-transport==8.17.1
     # via elasticsearch
-elasticsearch==9.0.0
+elasticsearch==8.18.1
     # via workspace-file-harvester (pyproject.toml)
 email-validator==2.2.0
     # via fastapi
