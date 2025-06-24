@@ -58,7 +58,7 @@ dependencies = [
     "opentelemetry-sdk",
     "opentelemetry-processor-baggage",
     "opentelemetry-instrumentation-logging",
-    "elasticsearch"
+    "elasticsearch<9.0.0"
 ]
 
 # List additional groups of dependencies here (e.g. development
