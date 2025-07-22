@@ -182,7 +182,7 @@ def generate_access_policies(file_data, workspace_name, s3_client):
     logging.info(f"Uploaded {catalogue_key_harvested} to {catalogue_data_access_control_s3_bucket}")
 
     for workflow_policy in workflow_access_policies:
-        workflow_key = f"deployed/{workspace_name}/{workflow_policy['name']}.access_policy.json"
+        workflow_key = f"deployed/{workspace_name}/{workflow_policy['name']}.access-policy.json"
         upload_file_s3(
             json.dumps(workflow_policy["policy"]),
             workflow_access_control_s3_bucket,
