@@ -1,10 +1,10 @@
 # Workspace File Harvester
 
-Collects user-uploaded files from S3. STAC files are passed to the transformer and ingestor for harvesting and access 
-policy files are used to update public access of files, folders and workflows. 
+Collects user-uploaded files from S3. STAC files are passed to the transformer and ingestor for harvesting and access
+policy files are used to update public access of files, folders and workflows.
 
-It is designed to operate as part of a data pipeline which is triggered by the POST endpoint. Files are collected 
-from an S3 bucket and are sent to a transformer if STAC files, or used to update access permissions if not. After 
+It is designed to operate as part of a data pipeline which is triggered by the POST endpoint. Files are collected
+from an S3 bucket and are sent to a transformer if STAC files, or used to update access permissions if not. After
 harvesting, it sends messages back to Pulsar to notify downstream services of the new or updated catalogue entries.
 
 
@@ -17,46 +17,25 @@ harvesting, it sends messages back to Pulsar to notify downstream services of th
 
 ## Getting started
 
+### Prerequisites
+
+- Python 3.13
+- [uv](https://docs.astral.sh/uv/)
+
 ### Install via makefile
 
 ```commandline
 make setup
 ```
 
-This will create a virtual environment called `venv`, build `requirements.txt` and
-`requirements-dev.txt` from `pyproject.toml` if they're out of date, install the Python
-and Node dependencies and install `pre-commit`.
+This will install dependencies using `uv sync` and set up `pre-commit` hooks.
 
-It's safe and fast to run `make setup` repeatedly as it will only update these things if
+It's safe and fast to run `make setup` repeatedly as it will only update things if
 they have changed.
 
-After `make setup` you can run `pre-commit` to run pre-commit checks on staged changes and
-`pre-commit run --all-files` to run them on all files. This replicates the linter checks that
+After `make setup` you can run `make pre-commit` to run pre-commit checks on staged changes and
+`make pre-commit-all` to run them on all files. This replicates the linter checks that
 run from GitHub actions.
-
-
-### Alternative installation
-
-You will need Python 3.12. On Debian you may need:
-* `sudo add-apt-repository -y 'deb http://ppa.launchpad.net/deadsnakes/ppa/ubuntu focal main'` (or `jammy` in place of `focal` for later Debian)
-* `sudo apt update`
-* `sudo apt install python3.12 python3.12-venv`
-
-and on Ubuntu you may need
-* `sudo add-apt-repository -y 'ppa:deadsnakes/ppa'`
-* `sudo apt update`
-* `sudo apt install python3.11 python3.11-venv`
-
-To prepare running it:
-
-* `virtualenv venv -p python3.12`
-* `. venv/bin/activate`
-* `rehash`
-* `python -m ensurepip -U`
-* `pip3 install -r requirements.txt`
-* `pip3 install -r requirements-dev.txt`
-
-You should also configure your IDE to use black so that code is automatically reformatted on save.
 
 
 ## Configuration
@@ -81,13 +60,13 @@ The following environment variables are required:
 - `ENV_NAME` - name of environment
 - `MAX_LOG_MESSAGES` - maximum number of log messages to display
 - `MAX_ENTRIES` - maximum number of entries to send per message
-- `RUNTIME_FREQUENCY_LIMIT` - minimum time (seconds) required between reharvests 
+- `RUNTIME_FREQUENCY_LIMIT` - minimum time (seconds) required between reharvests
 - `DEBUG` - debug mode enabled (bool)
 
 
 ### Query parameters
 
-An optional `age` query can be added to the `/{workspace_name}/harvest_logs` POST endpoint to set a different age range e.g. POST `/{workspace_name}/harvest_logs?age=86400`. For more information, visit the OpenAPI docs.  
+An optional `age` query can be added to the `/{workspace_name}/harvest_logs` POST endpoint to set a different age range e.g. POST `/{workspace_name}/harvest_logs?age=86400`. For more information, visit the OpenAPI docs.
 
 
 ## Pulsar Messages
@@ -95,7 +74,7 @@ An optional `age` query can be added to the `/{workspace_name}/harvest_logs` POS
 
 ### Outgoing Pulsar Messages (`harvested` topic)
 
-After processing, the service sends a message to the `harvested` topic. 
+After processing, the service sends a message to the `harvested` topic.
 
 ```json
 {
@@ -123,50 +102,39 @@ The service is typically run as part of a data pipeline, but you can invoke it d
 Run the file harvester from the command line:
 
 ```sh
-fastapi dev app.py
+fastapi dev workspace_file_harvester/app.py
 ```
 
 
 ## Development
 
 - Code is in `workspace_file_harvester`.
-- Formatting: [Black](https://black.readthedocs.io/), [Ruff](https://docs.astral.sh/ruff/), [isort](https://pycqa.github.io/isort/).
-- Linting: [Pylint](https://pylint.pycqa.org/).
+- Formatting and linting: [Ruff](https://docs.astral.sh/ruff/).
+- Type checking: [Pyright](https://microsoft.github.io/pyright/).
 - Pre-commit checks are installed with `make setup`.
 
 Useful Makefile targets:
 
 - `make setup`: Set up or update the dev environment.
-- `make test`: Run tests continuously.
+- `make test`: Run tests continuously with pytest-watcher.
 - `make testonce`: Run tests once.
-- `make lint`: Run all linters and formatters.
-- `make requirements`: Update requirements files from `pyproject.toml`.
-- `make requirements-update`: Update to the latest allowed versions.
+- `make check`: Run all linters, formatters, and type checks.
+- `make format`: Auto-fix lint issues and format code.
+- `make install`: Install dependencies from lockfile (frozen).
+- `make update`: Update dependencies.
 - `make dockerbuild`: Build a Docker image.
 - `make dockerpush`: Push a Docker image.
 
 
-## Managing requirements
+## Managing dependencies
 
-Requirements are specified in `pyproject.toml`, with development requirements listed separately. Specify version
-constraints as necessary but not specific versions. After changing them:
+Dependencies are specified in `pyproject.toml`. After changing them:
 
-* Run `pip-compile` (or `pip-compile -U` to upgrade requirements within constraints) to regenerate `requirements.txt`
-* Run `pip-compile --extra dev -o requirements-dev.txt` (again, add `-U` to upgrade) to regenerate
-  `requirements-dev.txt`.
-* Run the `pip3 install -r requirements.txt` and `pip3 install -r requirements-dev.txt` commands again and test.
-* Commit these files.
+* Run `uv sync` to update `uv.lock`.
+* Test that everything works.
+* Commit both `pyproject.toml` and `uv.lock`.
 
-If you see the error
-
-```commandline
-Backend subprocess exited when trying to invoke get_requires_for_build_wheel
-Failed to parse /.../template-python/pyproject.toml
-```
-
-then install and run `validate-pyproject pyproject.toml` and/or `pip3 install .` to check its syntax.
-
-To check for vulnerable dependencies, run `pip-audit`.
+To validate the pyproject.toml syntax, run `make check` (includes `validate-pyproject`).
 
 
 ## Testing
@@ -190,23 +158,20 @@ Check the application logs for detailed error messages.
 
 ## Releasing
 
-Ensure that `make lint` and `make test` work correctly and produce no further changes to code formatting before
+Ensure that `make check` and `make testonce` work correctly and produce no further changes to code formatting before
 continuing.
 
 Releases tagged `latest` and targeted at development environments can be created from the `main` branch. Releases for
 installation in non-development environments should be created from a Git tag named using semantic versioning. For
 example, using
 
-* `git tag 1.2.3`
+* `git tag v1.2.3`
 * `git push --tags`
 
-Normally, Docker images will be built automatically after pushing to the UKEODHP repos. Images can also be created
-manually in the following way:
+Docker images will be built automatically by GitHub Actions after pushing to the EO-DataHub repos.
 
-* For versioned images create a git tag.
-* Log in to the Docker repository service. For the UKEODHP environment this can be achieved with the following command
-  ```AWS_ACCESS_KEY_ID=...  AWS_SECRET_ACCESS_KEY=... aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin 312280911266.dkr.ecr.eu-west-2.amazonaws.com```
-  You will need to create an access key for a user with permission to modify ECR first.
+Images can also be created manually:
+
 * Run `make dockerbuild` (for images tagged `latest`) or `make dockerbuild VERSION=1.2.3` for a release tagged `1.2.3`.
   The image will be available locally within Docker after this step.
 * Run `make dockerpush` or `make dockerpush VERSION=1.2.3`. This will send the image to the ECR repository.
