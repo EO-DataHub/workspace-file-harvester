@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1@sha256:87999aa3d42bdc6bea60565083ee17e86d1f3339802f543c0d03998580f9cb89
 FROM ghcr.io/astral-sh/uv:python3.13-trixie-slim@sha256:237f21ec146a3c45b5a14ab531607648868c6062064b80a0f5313956d96c3f1c
 
-RUN apt-get update -y && apt-get upgrade -y && apt-get install -y git
+RUN apt-get update -y && apt-get upgrade -y && apt-get install -y git g++
 
 ENV UV_NO_DEV=1
 
