@@ -37,7 +37,7 @@ dependencies = [
     "opentelemetry-sdk",
     "opentelemetry-processor-baggage",
     "opentelemetry-instrumentation-logging",
-    "elasticsearch<9.4.2",
+    "httpx",
 ]
 
 [dependency-groups]

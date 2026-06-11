@@ -266,36 +266,6 @@ wheels = [
 ]
 
 [[package]]
-name = "elastic-transport"
-version = "9.4.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "certifi" },
-    { name = "sniffio" },
-    { name = "urllib3" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/0f/a8/dd1431b95daa54d4859c1d250362433df6df9cfaab7bfac3eafd410d019a/elastic_transport-9.4.1.tar.gz", hash = "sha256:d12c86ea73528690ebf63a488d9ae323292e6aa5ee55e1e29f14293472f4197f", size = 79170, upload-time = "2026-05-25T14:16:47.416Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/5c/f6/508c1e541b840b6eaf60a46a8994ba55affd07bf6a311cffc860781ae06a/elastic_transport-9.4.1-py3-none-any.whl", hash = "sha256:186a29e6c66ff269487e33f7b17176316e18b6061702c25eb0bb15681302e91d", size = 66229, upload-time = "2026-05-25T14:16:45.882Z" },
-]
-
-[[package]]
-name = "elasticsearch"
-version = "9.4.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "anyio" },
-    { name = "elastic-transport" },
-    { name = "python-dateutil" },
-    { name = "sniffio" },
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/e0/4b/9b753f0a8f56ae508dced2f7ac87bef7a27ce8f890e349e16812e9f7f4fa/elasticsearch-9.4.1.tar.gz", hash = "sha256:1d78fdfba97a903ec35a5eb5808a74e33392b7c620bd5f742d465a3a26c27d75", size = 908138, upload-time = "2026-05-26T16:28:40.132Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/cf/8e/2c93805e93e724a90156004a9212572ec86473974deede4605a33b8b169a/elasticsearch-9.4.1-py3-none-any.whl", hash = "sha256:71ab71c3d1b20fd88c2922fb82c3277cce7ea03c160686e7b9368b265c2b4cac", size = 993647, upload-time = "2026-05-26T16:28:36.556Z" },
-]
-
-[[package]]
 name = "email-validator"
 version = "2.3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1522,9 +1492,9 @@ source = { editable = "." }
 dependencies = [
     { name = "boto3" },
     { name = "botocore" },
-    { name = "elasticsearch" },
     { name = "eodhp-utils" },
     { name = "fastapi", extra = ["standard"] },
+    { name = "httpx" },
     { name = "opentelemetry-api" },
     { name = "opentelemetry-instrumentation-logging" },
     { name = "opentelemetry-processor-baggage" },
@@ -1552,9 +1522,9 @@ dev = [
 requires-dist = [
     { name = "boto3" },
     { name = "botocore" },
-    { name = "elasticsearch", specifier = "<9.4.2" },
-    { name = "eodhp-utils", git = "https://github.com/EO-DataHub/eodhp-utils?tag=v0.1.13" },
+    { name = "eodhp-utils", git = "https://github.com/EO-DataHub/eodhp-utils?tag=v0.1.7" },
     { name = "fastapi", extras = ["standard"] },
+    { name = "httpx" },
     { name = "opentelemetry-api" },
     { name = "opentelemetry-instrumentation-logging" },
     { name = "opentelemetry-processor-baggage" },
