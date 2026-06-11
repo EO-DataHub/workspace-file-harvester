@@ -46,8 +46,7 @@ The file harvester is configured through environment variables and query paramet
 ### Environment variables
 
 The following environment variables are required:
-- `ELASTICSEARCH_URL` - URL for elasticsearch (string)
-- `API_KEY` - elasticsearch API key (string)
+- `VICTORIALOGS_URL` - URL for the VictoriaLogs query service (string, optional - defaults to the in-cluster service)
 - `ROOT_PATH` - root path for workspaces
 - `SOURCE_S3_BUCKET` - bucket where files are uploaded to
 - `TARGET_S3_BUCKET` - bucket containing files for harvest
@@ -61,7 +60,6 @@ The following environment variables are required:
 - `MAX_LOG_MESSAGES` - maximum number of log messages to display
 - `MAX_ENTRIES` - maximum number of entries to send per message
 - `RUNTIME_FREQUENCY_LIMIT` - minimum time (seconds) required between reharvests
-- `DEBUG` - debug mode enabled (bool)
 
 
 ### Query parameters

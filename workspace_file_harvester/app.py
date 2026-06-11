@@ -1,5 +1,4 @@
 import asyncio
-import concurrent.futures
 import datetime
 import json
 import logging
@@ -8,9 +7,9 @@ import traceback
 import uuid
 from json import JSONDecodeError
 
+import httpx
 from botocore.client import BaseClient
 from botocore.exceptions import ClientError
-from elasticsearch import Elasticsearch
 from eodhp_utils.aws.s3 import delete_file_s3, upload_file_s3
 from eodhp_utils.runner import get_boto3_session, get_pulsar_client, setup_logging
 from fastapi import FastAPI
@@ -43,6 +42,7 @@ env_tag = f"-{env_name}" if env_name else ""
 
 minimum_message_entries = int(os.environ.get("MINIMUM_MESSAGE_ENTRIES", 100))
 max_log_messages = int(os.environ.get("MAX_LOG_MESSAGES", 100))
+victorialogs_url = os.environ.get("VICTORIALOGS_URL", "http://victorialogs-query.victorialogs.svc.cluster.local:9428")
 
 SECONDS_IN_HOUR = 60 * 60
 SECONDS_IN_DAY = 24 * SECONDS_IN_HOUR
@@ -408,63 +408,40 @@ async def harvest(workspace_name: str) -> JSONResponse:
     return JSONResponse(content={}, status_code=200)
 
 
-@app.post("/{workspace_name}/harvest_logs")
-async def harvest_logs(workspace_name: str, age: int = SECONDS_IN_DAY) -> JSONResponse:
+async def fetch_workspace_logs(workspace_name: str, age: int) -> list[dict]:
+    """Fetch a workspace's log messages from VictoriaLogs."""
+    quoted_name = json.dumps(workspace_name)
+    query = f"_time:{age}s log.workspace:={quoted_name} | sort by (_time desc) | limit {max_log_messages}"
 
-    es = Elasticsearch(os.environ["ELASTICSEARCH_URL"], verify_certs=False, api_key=os.environ["API_KEY"])
-    logging.info(f"Checking logs for {workspace_name}")
-
-    query = {
-        "bool": {
-            "must": [
-                {
-                    "match": {"json.workspace": workspace_name},
-                },
-                {"range": {"@timestamp": {"gte": f"now-{age}s", "lt": "now"}}},
-            ]
-        }
-    }
-
-    sort = [{"@timestamp": {"order": "desc"}}]
+    async with httpx.AsyncClient() as client:
+        response = await client.post(f"{victorialogs_url}/select/logsql/query", data={"query": query}, timeout=30)
+        response.raise_for_status()
 
     relevant_messages = []
-    if os.environ.get("DEBUG"):
-        # Runs code non-currently
-        for index in es.indices.get(index=".ds-logs-generic-default-*"):
-            logging.info(f"Found: {index}")
+    for line in response.text.splitlines():
+        if not line.strip():
+            continue
+        try:
+            entry = json.loads(line)
+        except JSONDecodeError:
+            logging.warning(f"Skipping malformed log entry: {line}")
+            continue
+        relevant_messages.append(
+            {
+                "datetime": entry["_time"],
+                "message": entry.get("_msg"),
+                "level": entry.get("level"),
+            }
+        )
 
-            results = es.search(index=index, scroll="1d", query=query, size=100, sort=sort)
+    return relevant_messages
 
-            messages = results["hits"]["hits"]
-            for message in messages:
-                source = message["_source"]
-                m = {
-                    "datetime": source["@timestamp"],
-                    "message": source["json"]["message"],
-                    "level": source["json"].get("level"),
-                }
-                relevant_messages.append(m)
 
-    else:
-        with concurrent.futures.ThreadPoolExecutor() as e:
-            fut = []
-            for index in es.indices.get(index=".ds-logs-generic-default-*"):
-                fut.append(e.submit(es.search, index=index, query=query, size=max_log_messages, sort=sort))
+@app.post("/{workspace_name}/harvest_logs")
+async def harvest_logs(workspace_name: str, age: int = SECONDS_IN_DAY) -> JSONResponse:
+    logging.info(f"Checking logs for {workspace_name}")
 
-            for r in concurrent.futures.as_completed(fut):
-                try:
-                    data = r.result()
-                    messages = data["hits"]["hits"]
-                    for message in messages:
-                        source = message["_source"]
-                        m = {
-                            "datetime": source["@timestamp"],
-                            "message": source["json"]["message"],
-                            "level": source["json"].get("level"),
-                        }
-                        relevant_messages.append(m)
-                except json.decoder.JSONDecodeError as e:
-                    pass
+    relevant_messages = await fetch_workspace_logs(workspace_name, age)
 
     count = len(relevant_messages)
     logging.info(f"Checked logs for {workspace_name}: {count} found")
