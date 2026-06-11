@@ -10,7 +10,7 @@ from eodhp_utils.messagers import Messager
 entry_type_dict = {"Collection": "collections", "Catalog": "catalogs", "Feature": "items"}
 
 
-class FileHarvesterMessager(Messager[dict]):
+class FileHarvesterMessager(Messager[dict, bytes]):
     """
     Searches for STAC files harvested from an S3 bucket into the harvested S3 bucket
     then sends a catalogue harvested message via Pulsar to trigger transformer and ingester.
